@@ -66,6 +66,8 @@ int getMacFromIp(char* dest_ip, char* dest_mac){
 
     fclose(arpCache);
 
+    //printf("DEST MAC:%s\n",dest_mac_str);
+
     if(strlen(macFromIp)!= 0){
         //printf("DEST MAC:%s\n",macFromIp);
         strcpy(dest_mac,macFromIp);
@@ -75,6 +77,34 @@ int getMacFromIp(char* dest_ip, char* dest_mac){
 }
 
 
+
+void split(char* source, uint8_t* splitted, char separator){
+    long ret;
+    char *ptr;
+    for(int i=0;i<6;i++) splitted[i]=0; //clear var
+    
+    char buffer[BUFFER_LEN]; 
+    int buffer_index = 0;
+    int splitted_index = 0;
+    int source_len = strlen(source);
+    for(int i=0;i<=source_len;i++){
+        if(source[i] != separator && source[i] != '\0'){
+           buffer[buffer_index] = source[i]; 
+           //printf("%c\n",buffer[buffer_index]);
+           buffer_index++;
+        }
+        else{
+            buffer[buffer_index] = '\0'; //close the string
+            splitted[splitted_index] = strtoul(buffer, &ptr, 16);
+            strcpy(buffer,""); //clean buffer
+            splitted_index++;
+            buffer_index = 0;
+        }    
+    }  
+
+    //printf("Source:%s\n", source);
+    //printf("SPLITTED MAC:%02X-%02X-%02X-%02X-%02X-%02X\n",splitted[0],splitted[1],splitted[2],splitted[3],splitted[4],splitted[5]);
+}
 
 int main(int argc, char *argv[]){
     int sockfd;
@@ -86,14 +116,17 @@ int main(int argc, char *argv[]){
     struct iphdr *iph = (struct iphdr *) (sendbuf + sizeof(struct ether_header));
     struct sockaddr_ll socket_address;
     char interfaceName[IFNAMSIZ];
-    uint8_t dest_mac_str[BUFFER_LEN];
-    
+    char dest_mac_str[BUFFER_LEN];
+    uint8_t dest_mac[6];
     
     // Parse args
     if (argc > 1){
-        getMacFromIp(argv[1],dest_mac_str);
         strcpy(interfaceName, DEFAULT_IF);
-        printf("DEST MAC:%s\n",dest_mac_str);
+        // look in ARP Table for the MAC related to IP
+        getMacFromIp(argv[1],dest_mac_str);
+        // split string and put each value in a uint vector position
+        split(dest_mac_str,dest_mac,':');
+        printf("DEST MAC:%02X-%02X-%02X-%02X-%02X-%02X\n",dest_mac[0],dest_mac[1],dest_mac[2],dest_mac[3],dest_mac[4],dest_mac[5]);
         //strcpy(interfaceName, argv[1]);
     }
     else {
@@ -140,12 +173,12 @@ int main(int argc, char *argv[]){
     eh->ether_shost[3] = source_mac[3];
     eh->ether_shost[4] = source_mac[4];
     eh->ether_shost[5] = source_mac[5];
-    eh->ether_dhost[0] = MY_DEST_MAC0;
-    eh->ether_dhost[1] = MY_DEST_MAC1;
-    eh->ether_dhost[2] = MY_DEST_MAC2;
-    eh->ether_dhost[3] = MY_DEST_MAC3;
-    eh->ether_dhost[4] = MY_DEST_MAC4;
-    eh->ether_dhost[5] = MY_DEST_MAC5;
+    eh->ether_dhost[0] = dest_mac[0];
+    eh->ether_dhost[1] = dest_mac[1];
+    eh->ether_dhost[2] = dest_mac[2];
+    eh->ether_dhost[3] = dest_mac[3];
+    eh->ether_dhost[4] = dest_mac[4];
+    eh->ether_dhost[5] = dest_mac[5];
     /* Ethertype field */
     eh->ether_type = htons(ETH_P_IP);
     tx_len += sizeof(struct ether_header);
