@@ -4,17 +4,18 @@
  *  the Free Software Foundation, either version 3 of the License, or
  *  (at your option) any later version.
  */
-
+// Sources:
+//[Get MAC address](http://www.microhowto.info/howto/get_the_mac_address_of_an_ethernet_interface_in_c_using_siocgifhwaddr.html)
 #include <arpa/inet.h>
 #include <linux/if_packet.h>
 #include <linux/ip.h>
 #include <linux/udp.h>
 #include <stdio.h>
-#include <string.h>
+#include <string.h> //strncpy
 #include <stdlib.h>
 #include <sys/socket.h>
 #include <sys/ioctl.h> // for ioctl commands Ex:SIOCGIFINDEX, SIOCGIFHWADDR
-#include <net/if.h> // for ioctl commands
+#include <net/if.h> // for ioctl commands, ifreq
 #include <netinet/ether.h>
 
 #define MY_DEST_MAC0    0x00
@@ -29,6 +30,52 @@
 #define DEFAULT_IF  "vboxnet0"
 #define BUF_SIZ     1518
 
+
+// ARP Parser
+#define ARP_CACHE       "/proc/net/arp"
+#define STRING_LEN  1023
+#define BUFFER_LEN  (STRING_LEN + 1)
+
+#define xstr(s) str(s)
+#define str(s) #s
+
+/* Format for fscanf() to read the 1st, 4th, and 6th space-delimited fields */
+#define ARP_LINE_FORMAT "%" xstr(STRING_LEN) "s %*s %*s " \
+                        "%" xstr(STRING_LEN) "s %*s " \
+                        "%" xstr(STRING_LEN) "s"
+
+int getMacFromIp(char* dest_ip, char* dest_mac){
+    //printf("DEST IP:%s\n",dest_ip);
+    FILE *arpCache = fopen(ARP_CACHE, "r");
+
+    /* Ignore/skip the first line, which contains the header */
+    char header[BUFFER_LEN];
+    fgets(header, sizeof(header), arpCache);
+
+    // Read file line by line
+    char ipAddr[BUFFER_LEN], hwAddr[BUFFER_LEN], device[BUFFER_LEN],macFromIp[BUFFER_LEN];
+    int count = 0;
+
+    while (3 == fscanf(arpCache, ARP_LINE_FORMAT, ipAddr, hwAddr, device)){
+        //printf("%03d: Mac Address of [%s] on [%s] is \"%s\"\n",++count, ipAddr, device, hwAddr);
+        if(strcmp(dest_ip,ipAddr)==0){
+            strcpy(macFromIp,hwAddr);
+            break;
+        }
+    }
+
+    fclose(arpCache);
+
+    if(strlen(macFromIp)!= 0){
+        //printf("DEST MAC:%s\n",macFromIp);
+        strcpy(dest_mac,macFromIp);
+        return 1;
+    }
+    else return 0;
+}
+
+
+
 int main(int argc, char *argv[]){
     int sockfd;
     struct ifreq if_idx;
@@ -39,12 +86,21 @@ int main(int argc, char *argv[]){
     struct iphdr *iph = (struct iphdr *) (sendbuf + sizeof(struct ether_header));
     struct sockaddr_ll socket_address;
     char interfaceName[IFNAMSIZ];
+    uint8_t dest_mac_str[BUFFER_LEN];
+    
     
     // Parse args
-    if (argc > 1)
-        strcpy(interfaceName, argv[1]);
-    else
+    if (argc > 1){
+        getMacFromIp(argv[1],dest_mac_str);
         strcpy(interfaceName, DEFAULT_IF);
+        printf("DEST MAC:%s\n",dest_mac_str);
+        //strcpy(interfaceName, argv[1]);
+    }
+    else {
+        printf("Insert some IP\n");
+        return 1;
+        //strcpy(interfaceName, DEFAULT_IF);
+    }
 
     // Creates a Socket RAW
     //AF_PACKET for a packet socket
