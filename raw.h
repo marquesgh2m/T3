@@ -20,8 +20,22 @@ struct ip_hdr {
 	uint8_t dst[4];			/* destination address */
 };
 
+struct icmp_hdr {
+    uint8_t type;
+    uint8_t code;
+    uint16_t checksum;
+    uint16_t id;
+    uint16_t seqNum;
+};
+
+struct icmp_packet{
+    struct ip_hdr iphdr;
+    struct icmp_hdr icmphdr;
+};
+
 union packet_u {
 	struct ip_hdr ip;
+	struct icmp_packet icmp;
 };
 
 struct eth_frame_s {

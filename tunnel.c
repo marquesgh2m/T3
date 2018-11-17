@@ -165,17 +165,34 @@ uint32_t ipchksum(uint8_t *packet)
 	return sum;
 }
 
+uint32_t chksum(uint16_t *addr, int count) {
+	int sum = 0;
+	
+	while( count > 1 )  {
+		sum += *addr++;
+		count -= 2;
+	}
+	
+	if( count > 0 )
+		sum += *addr;
+		
+	while (sum>>16)
+		sum = (sum & 0xffff) + (sum >> 16);
+		
+	return ~sum;
+}
+
 /**
  * Function to run the tunnel
  */
 void run_tunnel(char *dest, int server, int argc, char *argv[])
 {
 	char this_mac[6];
-	char bcast_mac[6] =	{0xff, 0xff, 0xff, 0xff, 0xff, 0xff};
-	char dst_mac[6] =	{0x00, 0x00, 0x00, 0x22, 0x22, 0x22};
-	char src_mac[6] =	{0x00, 0x00, 0x00, 0x33, 0x33, 0x33};
+	char bcast_mac[6] =	{0x08, 0x00, 0x27, 0x67, 0x42, 0xa8};
+	char dst_mac[6] =	{0x08, 0x00, 0x27, 0x67, 0x42, 0xa8};
+	char src_mac[6] =	{0x0a, 0x00, 0x27, 0x00, 0x00, 0x00};
 
-	char buf[1500];
+	char payload[1500];
 	union eth_buffer buffer_u;
 
 	struct ifreq if_idx, if_mac, ifopts;
@@ -234,18 +251,22 @@ void run_tunnel(char *dest, int server, int argc, char *argv[])
 
 		if (FD_ISSET(tun_fd, &fs)) {
 			printf("[DEBUG] Read tun device\n");
-			memset(&buf, 0, sizeof(buf));
-			size  = tun_read(tun_fd, buf, MTU);
+			memset(&payload, 0, sizeof(payload));
+			size  = tun_read(tun_fd, payload, MTU);
 			if(size  == -1) {
 				perror("Error while reading from tun device\n");
 				exit(EXIT_FAILURE);
 			}
-			print_hexdump(buf, size);
+			print_hexdump(payload, size);
 
 			/* Fill the Ethernet frame header */
 			memcpy(buffer_u.cooked_data.ethernet.dst_addr, bcast_mac, 6);
 			memcpy(buffer_u.cooked_data.ethernet.src_addr, src_mac, 6);
 			buffer_u.cooked_data.ethernet.eth_type = htons(ETH_P_IP);
+
+			// int posicao = sizeof(struct eth_hdr)+sizeof(struct ip_hdr)+sizeof(struct icmp_hdr);
+			// char mensagem[sizeof(tcp_b.mensagem)];
+			// memcpy(mensagem, tcp_b.mensagem, sizeof(tcp_b.mensagem));
 
 			/* Fill IP header data. Fill all fields and a zeroed CRC field, then update the CRC! */
 			buffer_u.cooked_data.payload.ip.ver = 0x45;
@@ -253,65 +274,76 @@ void run_tunnel(char *dest, int server, int argc, char *argv[])
 			buffer_u.cooked_data.payload.ip.len = htons(size + sizeof(struct ip_hdr));
 			buffer_u.cooked_data.payload.ip.id = htons(0x00);
 			buffer_u.cooked_data.payload.ip.off = htons(0x00);
-			buffer_u.cooked_data.payload.ip.ttl = 50;
-			buffer_u.cooked_data.payload.ip.proto = 0xff;
+			buffer_u.cooked_data.payload.ip.ttl = 40;
+			buffer_u.cooked_data.payload.ip.proto = 0x01; //ICMP
 			buffer_u.cooked_data.payload.ip.sum = htons(0x0000);
 
 			if (server) {
 				buffer_u.cooked_data.payload.ip.src[0] = 192;
 				buffer_u.cooked_data.payload.ip.src[1] = 168;
-				buffer_u.cooked_data.payload.ip.src[2] = 5;
-				buffer_u.cooked_data.payload.ip.src[3] = 25;
+				buffer_u.cooked_data.payload.ip.src[2] = 0;
+				buffer_u.cooked_data.payload.ip.src[3] = 1;
 				buffer_u.cooked_data.payload.ip.dst[0] = 192;
 				buffer_u.cooked_data.payload.ip.dst[1] = 168;
-				buffer_u.cooked_data.payload.ip.dst[2] = 6;
-				buffer_u.cooked_data.payload.ip.dst[3] = 6;
+				buffer_u.cooked_data.payload.ip.dst[2] = 0;
+				buffer_u.cooked_data.payload.ip.dst[3] = 101;
 			} else {
 				buffer_u.cooked_data.payload.ip.src[0] = 192;
 				buffer_u.cooked_data.payload.ip.src[1] = 168;
-				buffer_u.cooked_data.payload.ip.src[2] = 5;
-				buffer_u.cooked_data.payload.ip.src[3] = 25;
+				buffer_u.cooked_data.payload.ip.src[2] = 0;
+				buffer_u.cooked_data.payload.ip.src[3] = 1;
 				buffer_u.cooked_data.payload.ip.dst[0] = 192;
 				buffer_u.cooked_data.payload.ip.dst[1] = 168;
-				buffer_u.cooked_data.payload.ip.dst[2] = 6;
-				buffer_u.cooked_data.payload.ip.dst[3] = 6;
+				buffer_u.cooked_data.payload.ip.dst[2] = 0;
+				buffer_u.cooked_data.payload.ip.dst[3] = 103;
 			}
+
+			buffer_u.cooked_data.payload.icmp.icmphdr.type = 8;
+		    buffer_u.cooked_data.payload.icmp.icmphdr.code = 0;
+		    buffer_u.cooked_data.payload.icmp.icmphdr.checksum = 0;
+		    buffer_u.cooked_data.payload.icmp.icmphdr.id = htons(0xF0CA);
+		    buffer_u.cooked_data.payload.icmp.icmphdr.seqNum = htons(1); 
+		    //memcpy(&buffer_u.raw_data[posicao], mensagem, sizeof(mensagem));
+		    //buffer_u.cooked_data.payload.icmp.icmphdr.checksum = chksum((uint16_t*) &buffer_u.cooked_data.payload.icmp.icmphdr, sizeof(struct icmp_hdr) + sizeof(mensagem));
+		    
 
 			buffer_u.cooked_data.payload.ip.sum = htons((~ipchksum((uint8_t *)&buffer_u.cooked_data.payload.ip) & 0xffff));
 
 			/* Fill the payload */
-			memcpy(buffer_u.raw_data + sizeof(struct eth_hdr) + sizeof(struct ip_hdr), buf, size);
+			memcpy(buffer_u.raw_data + sizeof(struct eth_hdr) + sizeof(struct ip_hdr) + sizeof(struct icmp_hdr), payload, size);
 
 			/* Send it.. */
 			memcpy(socket_address.sll_addr, dst_mac, 6);
 			if (sendto(sock_fd, buffer_u.raw_data, size + sizeof(struct eth_hdr) + sizeof(struct ip_hdr), 0, (struct sockaddr*)&socket_address, sizeof(struct sockaddr_ll)) < 0)
 				printf("Send failed\n");
 
+			printf("size:%d\n",size);
 			printf("[DEBUG] Sent packet\n");
 		}
 
-		if (FD_ISSET(sock_fd, &fs)) {
+		// READING
+		/*if (FD_ISSET(sock_fd, &fs)) {
 			size = recvfrom(sock_fd, buffer_u.raw_data, ETH_LEN, 0, NULL, NULL);
 			if (buffer_u.cooked_data.ethernet.eth_type == ntohs(ETH_P_IP)){
 				if (server) {
 					if (	buffer_u.cooked_data.payload.ip.dst[0] == 192 && buffer_u.cooked_data.payload.ip.dst[1] == 168 &&
 						buffer_u.cooked_data.payload.ip.dst[2] == 6 && buffer_u.cooked_data.payload.ip.dst[3] == 6){
-						memcpy(buf, buffer_u.raw_data + sizeof(struct eth_hdr) + sizeof(struct ip_hdr), size);
-						print_hexdump(buf, size);
-						tun_write(tun_fd, buf, size);
+						memcpy(payload, buffer_u.raw_data + sizeof(struct eth_hdr) + sizeof(struct ip_hdr), size);
+						print_hexdump(payload, size);
+						tun_write(tun_fd, payload, size);
 						printf("[DEBUG] Write tun device\n");
 					}
 				} else {
 					if (	buffer_u.cooked_data.payload.ip.dst[0] == 192 && buffer_u.cooked_data.payload.ip.dst[1] == 168 &&
 						buffer_u.cooked_data.payload.ip.dst[2] == 6 && buffer_u.cooked_data.payload.ip.dst[3] == 6){
-						memcpy(buf, buffer_u.raw_data + sizeof(struct eth_hdr) + sizeof(struct ip_hdr), size);
-						print_hexdump(buf, size);
-						tun_write(tun_fd, buf, size);
+						memcpy(payload, buffer_u.raw_data + sizeof(struct eth_hdr) + sizeof(struct ip_hdr), size);
+						print_hexdump(payload, size);
+						tun_write(tun_fd, payload, size);
 						printf("[DEBUG] Write tun device\n");
 					}
 				}
 			}
-		}
+		}*/
 	}
 }
 
