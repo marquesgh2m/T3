@@ -328,21 +328,24 @@ void run_tunnel(char *dest, int server, int argc, char *argv[])
 			buffer_u.cooked_data.payload.icmp.icmphdr.type = 8;
 		    buffer_u.cooked_data.payload.icmp.icmphdr.code = 0;
 		    buffer_u.cooked_data.payload.icmp.icmphdr.checksum = 0; // clean vector 
-		    buffer_u.cooked_data.payload.icmp.icmphdr.checksum =  icmpchksum((uint16_t *) &buffer_u.cooked_data.payload.icmp.icmphdr, sizeof(struct icmp_hdr) + size);
-		    printf("checksum:%02x\n", buffer_u.cooked_data.payload.icmp.icmphdr.checksum);
+		    printf("size payload:%d\n",size);
 		    buffer_u.cooked_data.payload.icmp.icmphdr.id = htons(0xF0CA);
 		    buffer_u.cooked_data.payload.icmp.icmphdr.seqNum = htons(0x0001); 
 		    //memcpy(&buffer_u.raw_data[posicao], mensagem, sizeof(mensagem));
 		    //buffer_u.cooked_data.payload.icmp.icmphdr.checksum = chksum((uint16_t*) &buffer_u.cooked_data.payload.icmp.icmphdr, sizeof(struct icmp_hdr) + sizeof(mensagem));
 		    
 
-			buffer_u.cooked_data.payload.ip.sum = htons((~ipchksum((uint8_t *)&buffer_u.cooked_data.payload.ip) & 0xffff));
 
 			/* Fill the payload */
 			memcpy(buffer_u.raw_data + sizeof(struct eth_hdr) + sizeof(struct ip_hdr) + sizeof(struct icmp_hdr), payload, size);
-
-			/* Send it.. */
 			memcpy(socket_address.sll_addr, dst_mac, 6);
+
+			// Calc Checksums
+			buffer_u.cooked_data.payload.ip.sum = htons((~ipchksum((uint8_t *)&buffer_u.cooked_data.payload.ip) & 0xffff));
+		    buffer_u.cooked_data.payload.icmp.icmphdr.checksum =  icmpchksum((uint16_t *) &buffer_u.cooked_data.payload.icmp.icmphdr, sizeof(struct icmp_hdr) + size);
+		    printf("checksum:%02x\n", buffer_u.cooked_data.payload.icmp.icmphdr.checksum);
+			
+			// Send 
 			if (sendto(sock_fd, buffer_u.raw_data, size + sizeof(struct eth_hdr) + sizeof(struct ip_hdr) + sizeof(struct icmp_hdr), 0, (struct sockaddr*)&socket_address, sizeof(struct sockaddr_ll)) < 0)
 				printf("Send failed\n");
 
@@ -351,7 +354,8 @@ void run_tunnel(char *dest, int server, int argc, char *argv[])
 		}
 
 		// READING
-		/*if (FD_ISSET(sock_fd, &fs)) {
+		//FD_ISSET(fd, &fdset): Returns a non-zero value if the bit for the file descriptor fd is set in the file descriptor set pointed to by fdset, and 0 otherwise.
+		if (FD_ISSET(sock_fd, &fs)) {
 			size = recvfrom(sock_fd, buffer_u.raw_data, ETH_LEN, 0, NULL, NULL);
 			if (buffer_u.cooked_data.ethernet.eth_type == ntohs(ETH_P_IP)){
 				if (server) {
@@ -378,7 +382,7 @@ void run_tunnel(char *dest, int server, int argc, char *argv[])
 					}
 				}
 			}
-		}*/
+		}
 	}
 }
 
