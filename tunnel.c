@@ -165,6 +165,18 @@ uint32_t ipchksum(uint8_t *packet)
 	return sum;
 }
 
+uint32_t icmpchksum(uint16_t *packet, int len)
+{
+	uint32_t sum=0;
+	uint16_t i;
+
+	for(i = 0; i < len; i += 2)
+		sum += ((uint32_t)packet[i] << 8) | (uint32_t)packet[i + 1];
+	while (sum >> 16)
+		sum = (sum & 0xffff) + (sum >> 16);
+	return sum;
+}
+
 uint32_t chksum(uint16_t *addr, int count) {
 	int sum = 0;
 	
@@ -180,6 +192,34 @@ uint32_t chksum(uint16_t *addr, int count) {
 		sum = (sum & 0xffff) + (sum >> 16);
 		
 	return ~sum;
+}
+
+uint16_t in_cksum(uint16_t *addr, int len)
+{
+  printf("chksum_len:%d\n", len);
+  int nleft = len;
+  uint32_t sum = 0;
+  uint16_t *w = addr;
+  uint16_t answer = 0;
+
+  // Adding 16 bits sequentially in sum
+  while (nleft > 1) {
+    sum += *w;
+    nleft -= 2;
+    w++;
+  }
+
+  // If an odd byte is left
+  if (nleft == 1) {
+    *(unsigned char *) (&answer) = *(unsigned char *) w;
+    sum += answer;
+  }
+
+  sum = (sum >> 16) + (sum & 0xffff);
+  sum += (sum >> 16);
+  answer = ~sum;
+
+  return answer;
 }
 
 /**
@@ -271,7 +311,7 @@ void run_tunnel(char *dest, int server, int argc, char *argv[])
 			/* Fill IP header data. Fill all fields and a zeroed CRC field, then update the CRC! */
 			buffer_u.cooked_data.payload.ip.ver = 0x45;
 			buffer_u.cooked_data.payload.ip.tos = 0x00;
-			buffer_u.cooked_data.payload.ip.len = htons(size + sizeof(struct ip_hdr));
+			buffer_u.cooked_data.payload.ip.len = htons(size + sizeof(struct ip_hdr) + sizeof(struct icmp_hdr));
 			buffer_u.cooked_data.payload.ip.id = htons(0x00);
 			buffer_u.cooked_data.payload.ip.off = htons(0x00);
 			buffer_u.cooked_data.payload.ip.ttl = 40;
@@ -300,9 +340,12 @@ void run_tunnel(char *dest, int server, int argc, char *argv[])
 
 			buffer_u.cooked_data.payload.icmp.icmphdr.type = 8;
 		    buffer_u.cooked_data.payload.icmp.icmphdr.code = 0;
+		    //buffer_u.cooked_data.payload.icmp.icmphdr.checksum = ~chksum((uint16_t*) &buffer_u.cooked_data.payload.icmp.icmphdr, 68);
 		    buffer_u.cooked_data.payload.icmp.icmphdr.checksum = 0;
+		    buffer_u.cooked_data.payload.icmp.icmphdr.checksum =  in_cksum((uint16_t *) &buffer_u.cooked_data.payload.icmp.icmphdr, sizeof(struct icmp_hdr) + size);
+		    printf("checksum:%02x\n", buffer_u.cooked_data.payload.icmp.icmphdr.checksum);
 		    buffer_u.cooked_data.payload.icmp.icmphdr.id = htons(0xF0CA);
-		    buffer_u.cooked_data.payload.icmp.icmphdr.seqNum = htons(1); 
+		    buffer_u.cooked_data.payload.icmp.icmphdr.seqNum = htons(0x0001); 
 		    //memcpy(&buffer_u.raw_data[posicao], mensagem, sizeof(mensagem));
 		    //buffer_u.cooked_data.payload.icmp.icmphdr.checksum = chksum((uint16_t*) &buffer_u.cooked_data.payload.icmp.icmphdr, sizeof(struct icmp_hdr) + sizeof(mensagem));
 		    
@@ -314,7 +357,7 @@ void run_tunnel(char *dest, int server, int argc, char *argv[])
 
 			/* Send it.. */
 			memcpy(socket_address.sll_addr, dst_mac, 6);
-			if (sendto(sock_fd, buffer_u.raw_data, size + sizeof(struct eth_hdr) + sizeof(struct ip_hdr), 0, (struct sockaddr*)&socket_address, sizeof(struct sockaddr_ll)) < 0)
+			if (sendto(sock_fd, buffer_u.raw_data, size + sizeof(struct eth_hdr) + sizeof(struct ip_hdr) + sizeof(struct icmp_hdr), 0, (struct sockaddr*)&socket_address, sizeof(struct sockaddr_ll)) < 0)
 				printf("Send failed\n");
 
 			printf("size:%d\n",size);
