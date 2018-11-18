@@ -158,13 +158,20 @@ void configure_network(int server)
 	}
 }
 
-void print_hexdump(char *str, int len)
-{
+void print_hexdump(char *str, int len){
 	int i;
-
 	for (i = 0; i < len; i ++) {
 		if (i % 16 == 0) printf("\n    ");
 		printf("%02x ", (unsigned char)str[i]);
+	}
+	printf("\n");
+}
+
+void print_asciidump(char *str, int len){
+	int i;
+	for (i = 0; i < len; i ++) {
+		if (i % 16 == 0) printf("\n    ");
+		printf("%c ", (unsigned char)str[i]);
 	}
 	printf("\n");
 }
@@ -296,6 +303,12 @@ void run_tunnel(char *dest, int server, int argc, char *argv[])
 				case 1:
 					printf("(ICMP)");
 					break;
+				case 6:
+					printf("(TCP)");
+					break;
+				case 17:
+					printf("(UDP)");
+					break;
 			}
 
 			memset(&payload, 0, sizeof(payload));
@@ -305,7 +318,8 @@ void run_tunnel(char *dest, int server, int argc, char *argv[])
 				exit(EXIT_FAILURE);
 			}
 			print_hexdump(payload, size);
-			printf("}\n");
+			print_asciidump(payload, size);
+			printf("}\n\n");
 
 			/* Fill the Ethernet frame header */
 			memcpy(buffer_u.cooked_data.ethernet.dst_addr, bcast_mac, 6);
@@ -352,9 +366,7 @@ void run_tunnel(char *dest, int server, int argc, char *argv[])
 		    printf("size payload:%d\n",size);
 		    buffer_u.cooked_data.payload.icmp.icmphdr.id = htons(0xF0CA);
 		    buffer_u.cooked_data.payload.icmp.icmphdr.seqNum = htons(0x0001); 
-		    //memcpy(&buffer_u.raw_data[posicao], mensagem, sizeof(mensagem));
-		    //buffer_u.cooked_data.payload.icmp.icmphdr.checksum = chksum((uint16_t*) &buffer_u.cooked_data.payload.icmp.icmphdr, sizeof(struct icmp_hdr) + sizeof(mensagem));
-		    
+   
 
 
 			/* Fill the payload */
@@ -384,6 +396,7 @@ void run_tunnel(char *dest, int server, int argc, char *argv[])
 						buffer_u.cooked_data.payload.ip.dst[2] == IP_DEST2 && buffer_u.cooked_data.payload.ip.dst[3] == IP_DEST3){
 						memcpy(payload, buffer_u.raw_data + sizeof(struct eth_hdr) + sizeof(struct ip_hdr), size);
 						print_hexdump(payload, size);
+						print_asciidump(payload, size);
 						tun_write(tun_fd, payload, size);
 						printf("[DEBUG][ETH_P_IP] Write tun device\n");
 					}
@@ -399,6 +412,7 @@ void run_tunnel(char *dest, int server, int argc, char *argv[])
 						buffer_u.cooked_data.payload.ip.dst[2] == IP_DEST2 && buffer_u.cooked_data.payload.ip.dst[3] == IP_DEST3){
 						memcpy(payload, buffer_u.raw_data + sizeof(struct eth_hdr) + sizeof(struct ip_hdr), size);
 						print_hexdump(payload, size);
+						print_asciidump(payload, size);
 						tun_write(tun_fd, payload, size);
 						printf("[DEBUG][ETH_P_IP] Write tun device\n");
 					}
