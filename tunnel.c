@@ -279,10 +279,23 @@ void run_tunnel(char *dest, int server, int argc, char *argv[])
 		if (FD_ISSET(tun_fd, &fs)) {
 			printf("[DEBUG] Read tun device {\n");
 
-			printf("    ip.dst:    ");
+			printf("    ip.src:    ");
+			for(int jj = 0;jj<4;jj++){
+				printf("%02d",buffer_u.cooked_data.payload.ip.src[jj]);
+				if(jj<4-1)printf(":");
+			}
+			printf("\n    ip.dst:    ");
 			for(int jj = 0;jj<4;jj++){
 				printf("%02d",buffer_u.cooked_data.payload.ip.dst[jj]);
 				if(jj<4-1)printf(":");
+			}
+
+			printf("\n    ip.proto:  ");
+			printf("%u",buffer_u.cooked_data.payload.ip.proto);
+			switch(buffer_u.cooked_data.payload.ip.proto){
+				case 1:
+					printf("(ICMP)");
+					break;
 			}
 
 			memset(&payload, 0, sizeof(payload));
