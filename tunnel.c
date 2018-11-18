@@ -165,36 +165,7 @@ uint32_t ipchksum(uint8_t *packet)
 	return sum;
 }
 
-uint32_t icmpchksum(uint16_t *packet, int len)
-{
-	uint32_t sum=0;
-	uint16_t i;
-
-	for(i = 0; i < len; i += 2)
-		sum += ((uint32_t)packet[i] << 8) | (uint32_t)packet[i + 1];
-	while (sum >> 16)
-		sum = (sum & 0xffff) + (sum >> 16);
-	return sum;
-}
-
-uint32_t chksum(uint16_t *addr, int count) {
-	int sum = 0;
-	
-	while( count > 1 )  {
-		sum += *addr++;
-		count -= 2;
-	}
-	
-	if( count > 0 )
-		sum += *addr;
-		
-	while (sum>>16)
-		sum = (sum & 0xffff) + (sum >> 16);
-		
-	return ~sum;
-}
-
-uint16_t in_cksum(uint16_t *addr, int len)
+uint16_t icmpchksum(uint16_t *addr, int len)
 {
   printf("chksum_len:%d\n", len);
   int nleft = len;
@@ -342,7 +313,7 @@ void run_tunnel(char *dest, int server, int argc, char *argv[])
 		    buffer_u.cooked_data.payload.icmp.icmphdr.code = 0;
 		    //buffer_u.cooked_data.payload.icmp.icmphdr.checksum = ~chksum((uint16_t*) &buffer_u.cooked_data.payload.icmp.icmphdr, 68);
 		    buffer_u.cooked_data.payload.icmp.icmphdr.checksum = 0;
-		    buffer_u.cooked_data.payload.icmp.icmphdr.checksum =  in_cksum((uint16_t *) &buffer_u.cooked_data.payload.icmp.icmphdr, sizeof(struct icmp_hdr) + size);
+		    buffer_u.cooked_data.payload.icmp.icmphdr.checksum =  icmpchksum((uint16_t *) &buffer_u.cooked_data.payload.icmp.icmphdr, sizeof(struct icmp_hdr) + size);
 		    printf("checksum:%02x\n", buffer_u.cooked_data.payload.icmp.icmphdr.checksum);
 		    buffer_u.cooked_data.payload.icmp.icmphdr.id = htons(0xF0CA);
 		    buffer_u.cooked_data.payload.icmp.icmphdr.seqNum = htons(0x0001); 
