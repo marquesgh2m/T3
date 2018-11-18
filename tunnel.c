@@ -219,8 +219,7 @@ uint16_t icmpchksum(uint16_t *addr, int len)
 /**
  * Function to run the tunnel
  */
-void run_tunnel(char *dest, int server, int argc, char *argv[])
-{
+void run_tunnel(char *dest, int server, int argc, char *argv[]){
 	char this_mac[6];
 	char bcast_mac[6] =	{0x08, 0x00, 0x27, 0x67, 0x42, 0xa8};
 	char dst_mac[6] =	{0x08, 0x00, 0x27, 0x67, 0x42, 0xa8};
@@ -233,6 +232,7 @@ void run_tunnel(char *dest, int server, int argc, char *argv[])
 	char ifName[IFNAMSIZ];
 	struct sockaddr_ll socket_address;
 	int sock_fd, tun_fd, size;
+    int j = 0;
 
 	fd_set fs;
 
@@ -287,14 +287,14 @@ void run_tunnel(char *dest, int server, int argc, char *argv[])
 			printf("[DEBUG] Read tun device {\n");
 
 			printf("    ip.src:    ");
-			for(int jj = 0;jj<4;jj++){
-				printf("%02d",buffer_u.cooked_data.payload.ip.src[jj]);
-				if(jj<4-1)printf(":");
+			for(j = 0;j<4;j++){
+				printf("%02d",buffer_u.cooked_data.payload.ip.src[j]);
+				if(j<4-1)printf(":");
 			}
 			printf("\n    ip.dst:    ");
-			for(int jj = 0;jj<4;jj++){
-				printf("%02d",buffer_u.cooked_data.payload.ip.dst[jj]);
-				if(jj<4-1)printf(":");
+			for(j = 0;j<4;j++){
+				printf("%02d",buffer_u.cooked_data.payload.ip.dst[j]);
+				if(j<4-1)printf(":");
 			}
 
 			printf("\n    ip.proto:  ");
@@ -401,9 +401,9 @@ void run_tunnel(char *dest, int server, int argc, char *argv[])
 					}
 				} else {
 					printf("IDENTIFIED ip.dst:    ");
-					for(int jj = 0;jj<4;jj++){
-						printf("%02d",buffer_u.cooked_data.payload.ip.dst[jj]);
-						if(jj<4-1)printf(":");
+					for(j = 0;j<4;j++){
+						printf("%02d",buffer_u.cooked_data.payload.ip.dst[j]);
+						if(j<4-1)printf(":");
 					}
 					printf("    %02d:%02d:%02d:%02d",IP_DEST0,IP_DEST1,IP_DEST2,IP_DEST3);
 					printf("\n");
