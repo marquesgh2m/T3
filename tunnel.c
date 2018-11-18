@@ -163,7 +163,7 @@ void print_hexdump(char *str, int len)
 	int i;
 
 	for (i = 0; i < len; i ++) {
-		if (i % 16 == 0) printf("\n");
+		if (i % 16 == 0) printf("\n    ");
 		printf("%02x ", (unsigned char)str[i]);
 	}
 	printf("\n");
@@ -277,7 +277,14 @@ void run_tunnel(char *dest, int server, int argc, char *argv[])
 		select(tun_fd > sock_fd ? tun_fd+1 : sock_fd+1, &fs, NULL, NULL, NULL);
 
 		if (FD_ISSET(tun_fd, &fs)) {
-			printf("[DEBUG] Read tun device\n");
+			printf("[DEBUG] Read tun device {\n");
+
+			printf("    ip.dst:    ");
+			for(int jj = 0;jj<4;jj++){
+				printf("%02d",buffer_u.cooked_data.payload.ip.dst[jj]);
+				if(jj<4-1)printf(":");
+			}
+
 			memset(&payload, 0, sizeof(payload));
 			size  = tun_read(tun_fd, payload, MTU);
 			if(size  == -1) {
@@ -285,6 +292,7 @@ void run_tunnel(char *dest, int server, int argc, char *argv[])
 				exit(EXIT_FAILURE);
 			}
 			print_hexdump(payload, size);
+			printf("}\n");
 
 			/* Fill the Ethernet frame header */
 			memcpy(buffer_u.cooked_data.ethernet.dst_addr, bcast_mac, 6);
@@ -343,7 +351,7 @@ void run_tunnel(char *dest, int server, int argc, char *argv[])
 			// Calc Checksums
 			buffer_u.cooked_data.payload.ip.sum = htons((~ipchksum((uint8_t *)&buffer_u.cooked_data.payload.ip) & 0xffff));
 		    buffer_u.cooked_data.payload.icmp.icmphdr.checksum =  icmpchksum((uint16_t *) &buffer_u.cooked_data.payload.icmp.icmphdr, sizeof(struct icmp_hdr) + size);
-		    printf("checksum:%02x\n", buffer_u.cooked_data.payload.icmp.icmphdr.checksum);
+		    //printf("checksum:%02x\n", buffer_u.cooked_data.payload.icmp.icmphdr.checksum);
 			
 			// Send 
 			if (sendto(sock_fd, buffer_u.raw_data, size + sizeof(struct eth_hdr) + sizeof(struct ip_hdr) + sizeof(struct icmp_hdr), 0, (struct sockaddr*)&socket_address, sizeof(struct sockaddr_ll)) < 0)
