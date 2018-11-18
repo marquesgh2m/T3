@@ -27,6 +27,22 @@
 #define MTU 1472
 #define DEFAULT_ROUTE   "0.0.0.0"
 
+#define IP_SOURCE0 192
+#define IP_SOURCE1 168
+#define IP_SOURCE2 0
+#define IP_SOURCE3 1
+
+#define IP_DEST0 192
+#define IP_DEST1 168
+#define IP_DEST2 0
+#define IP_DEST3 103
+
+#define IP_REDIRECT0 192
+#define IP_REDIRECT1 168
+#define IP_REDIRECT2 0
+#define IP_REDIRECT3 101
+
+
 /**
  * Function to allocate a tunnel
  */
@@ -167,7 +183,7 @@ uint32_t ipchksum(uint8_t *packet)
 
 uint16_t icmpchksum(uint16_t *addr, int len)
 {
-  printf("chksum_len:%d\n", len);
+  //printf("chksum_len:%d\n", len);
   int nleft = len;
   uint32_t sum = 0;
   uint16_t *w = addr;
@@ -182,7 +198,7 @@ uint16_t icmpchksum(uint16_t *addr, int len)
 
   // If an odd byte is left
   if (nleft == 1) {
-    *(unsigned char *) (&answer) = *(unsigned char *) w;
+    *(uint8_t *) (&answer) = *(uint8_t *) w;
     sum += answer;
   }
 
@@ -290,29 +306,28 @@ void run_tunnel(char *dest, int server, int argc, char *argv[])
 			buffer_u.cooked_data.payload.ip.sum = htons(0x0000);
 
 			if (server) {
-				buffer_u.cooked_data.payload.ip.src[0] = 192;
-				buffer_u.cooked_data.payload.ip.src[1] = 168;
-				buffer_u.cooked_data.payload.ip.src[2] = 0;
-				buffer_u.cooked_data.payload.ip.src[3] = 1;
-				buffer_u.cooked_data.payload.ip.dst[0] = 192;
-				buffer_u.cooked_data.payload.ip.dst[1] = 168;
-				buffer_u.cooked_data.payload.ip.dst[2] = 0;
-				buffer_u.cooked_data.payload.ip.dst[3] = 101;
+				buffer_u.cooked_data.payload.ip.src[0] = IP_SOURCE0;
+				buffer_u.cooked_data.payload.ip.src[1] = IP_SOURCE1;
+				buffer_u.cooked_data.payload.ip.src[2] = IP_SOURCE2;
+				buffer_u.cooked_data.payload.ip.src[3] = IP_SOURCE3;
+				buffer_u.cooked_data.payload.ip.dst[0] = IP_REDIRECT0;
+				buffer_u.cooked_data.payload.ip.dst[1] = IP_REDIRECT1;
+				buffer_u.cooked_data.payload.ip.dst[2] = IP_REDIRECT2;
+				buffer_u.cooked_data.payload.ip.dst[3] = IP_REDIRECT3;
 			} else {
-				buffer_u.cooked_data.payload.ip.src[0] = 192;
-				buffer_u.cooked_data.payload.ip.src[1] = 168;
-				buffer_u.cooked_data.payload.ip.src[2] = 0;
-				buffer_u.cooked_data.payload.ip.src[3] = 1;
-				buffer_u.cooked_data.payload.ip.dst[0] = 192;
-				buffer_u.cooked_data.payload.ip.dst[1] = 168;
-				buffer_u.cooked_data.payload.ip.dst[2] = 0;
-				buffer_u.cooked_data.payload.ip.dst[3] = 103;
+				buffer_u.cooked_data.payload.ip.src[0] = IP_SOURCE0;
+				buffer_u.cooked_data.payload.ip.src[1] = IP_SOURCE1;
+				buffer_u.cooked_data.payload.ip.src[2] = IP_SOURCE2;
+				buffer_u.cooked_data.payload.ip.src[3] = IP_SOURCE3;
+				buffer_u.cooked_data.payload.ip.dst[0] = IP_DEST0;
+				buffer_u.cooked_data.payload.ip.dst[1] = IP_DEST1;
+				buffer_u.cooked_data.payload.ip.dst[2] = IP_DEST2;
+				buffer_u.cooked_data.payload.ip.dst[3] = IP_DEST3;
 			}
 
 			buffer_u.cooked_data.payload.icmp.icmphdr.type = 8;
 		    buffer_u.cooked_data.payload.icmp.icmphdr.code = 0;
-		    //buffer_u.cooked_data.payload.icmp.icmphdr.checksum = ~chksum((uint16_t*) &buffer_u.cooked_data.payload.icmp.icmphdr, 68);
-		    buffer_u.cooked_data.payload.icmp.icmphdr.checksum = 0;
+		    buffer_u.cooked_data.payload.icmp.icmphdr.checksum = 0; // clean vector 
 		    buffer_u.cooked_data.payload.icmp.icmphdr.checksum =  icmpchksum((uint16_t *) &buffer_u.cooked_data.payload.icmp.icmphdr, sizeof(struct icmp_hdr) + size);
 		    printf("checksum:%02x\n", buffer_u.cooked_data.payload.icmp.icmphdr.checksum);
 		    buffer_u.cooked_data.payload.icmp.icmphdr.id = htons(0xF0CA);
@@ -340,20 +355,26 @@ void run_tunnel(char *dest, int server, int argc, char *argv[])
 			size = recvfrom(sock_fd, buffer_u.raw_data, ETH_LEN, 0, NULL, NULL);
 			if (buffer_u.cooked_data.ethernet.eth_type == ntohs(ETH_P_IP)){
 				if (server) {
-					if (	buffer_u.cooked_data.payload.ip.dst[0] == 192 && buffer_u.cooked_data.payload.ip.dst[1] == 168 &&
-						buffer_u.cooked_data.payload.ip.dst[2] == 6 && buffer_u.cooked_data.payload.ip.dst[3] == 6){
+					if (	buffer_u.cooked_data.payload.ip.dst[0] == IP_DEST0 && buffer_u.cooked_data.payload.ip.dst[1] == IP_DEST1 &&
+						buffer_u.cooked_data.payload.ip.dst[2] == IP_DEST2 && buffer_u.cooked_data.payload.ip.dst[3] == IP_DEST3){
 						memcpy(payload, buffer_u.raw_data + sizeof(struct eth_hdr) + sizeof(struct ip_hdr), size);
 						print_hexdump(payload, size);
 						tun_write(tun_fd, payload, size);
-						printf("[DEBUG] Write tun device\n");
+						printf("[DEBUG][ETH_P_IP] Write tun device\n");
 					}
 				} else {
-					if (	buffer_u.cooked_data.payload.ip.dst[0] == 192 && buffer_u.cooked_data.payload.ip.dst[1] == 168 &&
-						buffer_u.cooked_data.payload.ip.dst[2] == 6 && buffer_u.cooked_data.payload.ip.dst[3] == 6){
+					printf("ip.dst:    ");
+					for(int jj = 0;jj<4;jj++){
+						printf("%02d",buffer_u.cooked_data.payload.ip.dst[jj]);
+						if(jj<4-1)printf(":");
+					}
+					printf("\n");
+					if (	buffer_u.cooked_data.payload.ip.dst[0] == IP_DEST0 && buffer_u.cooked_data.payload.ip.dst[1] == IP_DEST1 &&
+						buffer_u.cooked_data.payload.ip.dst[2] == IP_DEST2 && buffer_u.cooked_data.payload.ip.dst[3] == IP_DEST3){
 						memcpy(payload, buffer_u.raw_data + sizeof(struct eth_hdr) + sizeof(struct ip_hdr), size);
 						print_hexdump(payload, size);
 						tun_write(tun_fd, payload, size);
-						printf("[DEBUG] Write tun device\n");
+						printf("[DEBUG][ETH_P_IP] Write tun device\n");
 					}
 				}
 			}
