@@ -375,11 +375,12 @@ void run_tunnel(char *dest, int server, int argc, char *argv[])
 						printf("[DEBUG][ETH_P_IP] Write tun device\n");
 					}
 				} else {
-					printf("ip.dst:    ");
+					printf("IDENTIFIED ip.dst:    ");
 					for(int jj = 0;jj<4;jj++){
 						printf("%02d",buffer_u.cooked_data.payload.ip.dst[jj]);
 						if(jj<4-1)printf(":");
 					}
+					printf("    %02d:%02d:%02d:%02d",IP_DEST0,IP_DEST1,IP_DEST2,IP_DEST3);
 					printf("\n");
 					if (	buffer_u.cooked_data.payload.ip.dst[0] == IP_DEST0 && buffer_u.cooked_data.payload.ip.dst[1] == IP_DEST1 &&
 						buffer_u.cooked_data.payload.ip.dst[2] == IP_DEST2 && buffer_u.cooked_data.payload.ip.dst[3] == IP_DEST3){
