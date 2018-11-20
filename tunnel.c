@@ -29,18 +29,18 @@
 
 #define IP_SERVER0 192
 #define IP_SERVER1 168
-#define IP_SERVER2 0
+#define IP_SERVER2 56
 #define IP_SERVER3 1
 
 #define IP_CLIENT0 192
 #define IP_CLIENT1 168
-#define IP_CLIENT2 0
-#define IP_CLIENT3 103
+#define IP_CLIENT2 56
+#define IP_CLIENT3 3
 
 #define IP_REDIRECT0 192
 #define IP_REDIRECT1 168
-#define IP_REDIRECT2 0
-#define IP_REDIRECT3 101
+#define IP_REDIRECT2 56
+#define IP_REDIRECT3 4
 
 // Protocol numbers
 #define ICMP 1
@@ -295,8 +295,7 @@ void run_tunnel(char *dest, int server, int argc, char *argv[]){
 
 		select(tun_fd > sock_fd ? tun_fd+1 : sock_fd+1, &fs, NULL, NULL, NULL);
 
-		if (FD_ISSET(tun_fd, &fs)&&
-            buffer_u.cooked_data.payload.ip.proto == TCP) {
+		if (FD_ISSET(tun_fd, &fs)) {
 			printf("\e[0;32m"); //GREEN
             printf("[DEBUG] Read tun device {\n");
 
@@ -319,10 +318,6 @@ void run_tunnel(char *dest, int server, int argc, char *argv[]){
 			memcpy(buffer_u.cooked_data.ethernet.src_addr, src_mac, 6);
 			buffer_u.cooked_data.ethernet.eth_type = htons(ETH_P_IP);
 
-			// int posicao = sizeof(struct eth_hdr)+sizeof(struct ip_hdr)+sizeof(struct icmp_hdr);
-			// char mensagem[sizeof(tcp_b.mensagem)];
-			// memcpy(mensagem, tcp_b.mensagem, sizeof(tcp_b.mensagem));
-
 			/* Fill IP header data. Fill all fields and a zeroed CRC field, then update the CRC! */
 			buffer_u.cooked_data.payload.ip.ver = 0x45;
 			buffer_u.cooked_data.payload.ip.tos = 0x00;
@@ -343,35 +338,34 @@ void run_tunnel(char *dest, int server, int argc, char *argv[]){
 				buffer_u.cooked_data.payload.ip.dst[2] = IP_CLIENT2;//IP_REDIRECT2;
 				buffer_u.cooked_data.payload.ip.dst[3] = IP_CLIENT3;//IP_REDIRECT3;
 			} else {
-				buffer_u.cooked_data.payload.ip.src[0] = IP_SERVER0;
-				buffer_u.cooked_data.payload.ip.src[1] = IP_SERVER1;
-				buffer_u.cooked_data.payload.ip.src[2] = IP_SERVER2;
-				buffer_u.cooked_data.payload.ip.src[3] = IP_SERVER3;
-				buffer_u.cooked_data.payload.ip.dst[0] = IP_CLIENT0;
-				buffer_u.cooked_data.payload.ip.dst[1] = IP_CLIENT1;
-				buffer_u.cooked_data.payload.ip.dst[2] = IP_CLIENT2;
-				buffer_u.cooked_data.payload.ip.dst[3] = IP_CLIENT3;
-                //ICMP
-    			buffer_u.cooked_data.payload.icmp.icmphdr.type = 8;
-    		    buffer_u.cooked_data.payload.icmp.icmphdr.code = 0;
-    		    buffer_u.cooked_data.payload.icmp.icmphdr.checksum = 0; // clean vector 
-    		    buffer_u.cooked_data.payload.icmp.icmphdr.id = htons(0xF0CA);
-    		    buffer_u.cooked_data.payload.icmp.icmphdr.seqNum = htons(0x0001); 
-            
-                /* Fill the payload */
-                memcpy(buffer_u.raw_data + sizeof(struct eth_hdr) + sizeof(struct ip_hdr) + sizeof(struct icmp_hdr), payload, size);
-                memcpy(socket_address.sll_addr, dst_mac, 6);
-
-                // Calc Checksums
-                buffer_u.cooked_data.payload.ip.sum = htons((~ipchksum((uint8_t *)&buffer_u.cooked_data.payload.ip) & 0xffff));
-                buffer_u.cooked_data.payload.icmp.icmphdr.checksum =  icmpchksum((uint16_t *) &buffer_u.cooked_data.payload.icmp.icmphdr, sizeof(struct icmp_hdr) + size);
-                //printf("checksum:%02x\n", buffer_u.cooked_data.payload.icmp.icmphdr.checksum);
-                
-                // Send 
-                if (sendto(sock_fd, buffer_u.raw_data, size + sizeof(struct eth_hdr) + sizeof(struct ip_hdr) + sizeof(struct icmp_hdr), 0, (struct sockaddr*)&socket_address, sizeof(struct sockaddr_ll)) < 0)
-                    printf("Send failed\n");
-                printf("[DEBUG] Sent packet\n");
+				buffer_u.cooked_data.payload.ip.src[0] = IP_CLIENT0;
+				buffer_u.cooked_data.payload.ip.src[1] = IP_CLIENT1;
+				buffer_u.cooked_data.payload.ip.src[2] = IP_CLIENT2;
+				buffer_u.cooked_data.payload.ip.src[3] = IP_CLIENT3;
+				buffer_u.cooked_data.payload.ip.dst[0] = IP_SERVER0;
+				buffer_u.cooked_data.payload.ip.dst[1] = IP_SERVER1;
+				buffer_u.cooked_data.payload.ip.dst[2] = IP_SERVER2;
+				buffer_u.cooked_data.payload.ip.dst[3] = IP_SERVER3;
             }
+            //ICMP
+			buffer_u.cooked_data.payload.icmp.icmphdr.type = 8;
+		    buffer_u.cooked_data.payload.icmp.icmphdr.code = 0;
+		    buffer_u.cooked_data.payload.icmp.icmphdr.checksum = 0; // clean vector 
+		    buffer_u.cooked_data.payload.icmp.icmphdr.id = htons(0xF0CA);
+		    buffer_u.cooked_data.payload.icmp.icmphdr.seqNum = htons(0x0001); 
+            /* Fill the payload */
+            memcpy(buffer_u.raw_data + sizeof(struct eth_hdr) + sizeof(struct ip_hdr) + sizeof(struct icmp_hdr), payload, size);
+            memcpy(socket_address.sll_addr, dst_mac, 6);
+
+            // Calc Checksums
+            buffer_u.cooked_data.payload.ip.sum = htons((~ipchksum((uint8_t *)&buffer_u.cooked_data.payload.ip) & 0xffff));
+            buffer_u.cooked_data.payload.icmp.icmphdr.checksum =  icmpchksum((uint16_t *) &buffer_u.cooked_data.payload.icmp.icmphdr, sizeof(struct icmp_hdr) + size);
+            //printf("checksum:%02x\n", buffer_u.cooked_data.payload.icmp.icmphdr.checksum);
+            
+            // Send 
+            if (sendto(sock_fd, buffer_u.raw_data, size + sizeof(struct eth_hdr) + sizeof(struct ip_hdr) + sizeof(struct icmp_hdr), 0, (struct sockaddr*)&socket_address, sizeof(struct sockaddr_ll)) < 0)
+                printf("Send failed\n");
+            printf("[DEBUG] Sent packet\n");
 
    
 		}
@@ -419,12 +413,7 @@ void run_tunnel(char *dest, int server, int argc, char *argv[]){
                 memset(&payload, 0, sizeof(payload));
                 memcpy(payload, buffer_u.raw_data + sizeof(struct eth_hdr), size);
 
-                print_hexdump(payload, size);
-                print_asciidump(payload, size);
-
-                tun_write(tun_fd, payload, size);
-                /*if (buffer_u.cooked_data.ethernet.eth_type == ntohs(ETH_P_IP) &&
-                        buffer_u.cooked_data.payload.ip.proto == 1){ //ICMP
+                if (buffer_u.cooked_data.ethernet.eth_type == ntohs(ETH_P_IP)){ //ICMP
     				printf("IDENTIFIED ip.dst:    ");
                         for(j = 0;j<4;j++){
                             printf("%02d",buffer_u.cooked_data.payload.ip.dst[j]);
@@ -451,7 +440,7 @@ void run_tunnel(char *dest, int server, int argc, char *argv[]){
     						printf("[DEBUG][ETH_P_IP] Write tun device\n");
     					}
     				}
-    			}*/
+    			}
             }
 		}
         printf("\e[0m"); //No Color
