@@ -27,21 +27,6 @@
 #define MTU 1472
 #define DEFAULT_ROUTE   "0.0.0.0"
 
-#define IP_SERVER0 192
-#define IP_SERVER1 168
-#define IP_SERVER2 56
-#define IP_SERVER3 1
-
-#define IP_CLIENT0 192
-#define IP_CLIENT1 168
-#define IP_CLIENT2 56
-#define IP_CLIENT3 3
-
-#define IP_REDIRECT0 192
-#define IP_REDIRECT1 168
-#define IP_REDIRECT2 56
-#define IP_REDIRECT3 4
-
 // Protocol numbers
 #define ICMP 1
 #define TCP 6
@@ -188,8 +173,7 @@ void print_decdump(char *str, int len){
     printf("\n");
 }
 
-uint32_t ipchksum(uint8_t *packet)
-{
+uint32_t ipchksum(uint8_t *packet){
 	uint32_t sum=0;
 	uint16_t i;
 
@@ -200,8 +184,7 @@ uint32_t ipchksum(uint8_t *packet)
 	return sum;
 }
 
-uint16_t icmpchksum(uint16_t *addr, int len)
-{
+uint16_t icmpchksum(uint16_t *addr, int len){
   //printf("chksum_len:%d\n", len);
   int nleft = len;
   uint32_t sum = 0;
@@ -236,6 +219,10 @@ void run_tunnel(char *dest, int server, int argc, char *argv[]){
 	char bcast_mac[6] =	{0x08, 0x00, 0x27, 0x67, 0x42, 0xa8};
 	char dst_mac[6] =	{0x08, 0x00, 0x27, 0x67, 0x42, 0xa8};
 	char src_mac[6] =	{0x0a, 0x00, 0x27, 0x00, 0x00, 0x00};
+
+    char ip_proxy[4] = {192, 168, 56, 1};
+    char ip_client[4] = {192, 168, 56, 3};
+    char ip_destiny[4] = {192, 168, 56, 4};
 
 	char payload[1500];
 	union eth_buffer buffer_u;
@@ -329,23 +316,23 @@ void run_tunnel(char *dest, int server, int argc, char *argv[]){
 			buffer_u.cooked_data.payload.ip.sum = htons(0x0000);
 
 			if (server) {
-				buffer_u.cooked_data.payload.ip.src[0] = IP_SERVER0;
-				buffer_u.cooked_data.payload.ip.src[1] = IP_SERVER1;
-				buffer_u.cooked_data.payload.ip.src[2] = IP_SERVER2;
-				buffer_u.cooked_data.payload.ip.src[3] = IP_SERVER3;
-				buffer_u.cooked_data.payload.ip.dst[0] = IP_CLIENT0;//IP_REDIRECT0;
-				buffer_u.cooked_data.payload.ip.dst[1] = IP_CLIENT1;//IP_REDIRECT1;
-				buffer_u.cooked_data.payload.ip.dst[2] = IP_CLIENT2;//IP_REDIRECT2;
-				buffer_u.cooked_data.payload.ip.dst[3] = IP_CLIENT3;//IP_REDIRECT3;
+				buffer_u.cooked_data.payload.ip.src[0] = ip_proxy[0];
+				buffer_u.cooked_data.payload.ip.src[1] = ip_proxy[1];
+				buffer_u.cooked_data.payload.ip.src[2] = ip_proxy[2];
+				buffer_u.cooked_data.payload.ip.src[3] = ip_proxy[3];
+				buffer_u.cooked_data.payload.ip.dst[0] = ip_destiny[0];
+				buffer_u.cooked_data.payload.ip.dst[1] = ip_destiny[1];
+				buffer_u.cooked_data.payload.ip.dst[2] = ip_destiny[2];
+				buffer_u.cooked_data.payload.ip.dst[3] = ip_destiny[3];
 			} else {
-				buffer_u.cooked_data.payload.ip.src[0] = IP_CLIENT0;
-				buffer_u.cooked_data.payload.ip.src[1] = IP_CLIENT1;
-				buffer_u.cooked_data.payload.ip.src[2] = IP_CLIENT2;
-				buffer_u.cooked_data.payload.ip.src[3] = IP_CLIENT3;
-				buffer_u.cooked_data.payload.ip.dst[0] = IP_SERVER0;
-				buffer_u.cooked_data.payload.ip.dst[1] = IP_SERVER1;
-				buffer_u.cooked_data.payload.ip.dst[2] = IP_SERVER2;
-				buffer_u.cooked_data.payload.ip.dst[3] = IP_SERVER3;
+				buffer_u.cooked_data.payload.ip.src[0] = ip_client[0];
+				buffer_u.cooked_data.payload.ip.src[1] = ip_client[1];
+				buffer_u.cooked_data.payload.ip.src[2] = ip_client[2];
+				buffer_u.cooked_data.payload.ip.src[3] = ip_client[3];
+				buffer_u.cooked_data.payload.ip.dst[0] = ip_proxy[0];
+				buffer_u.cooked_data.payload.ip.dst[1] = ip_proxy[1];
+				buffer_u.cooked_data.payload.ip.dst[2] = ip_proxy[2];
+				buffer_u.cooked_data.payload.ip.dst[3] = ip_proxy[3];
             }
             //ICMP
 			buffer_u.cooked_data.payload.icmp.icmphdr.type = 8;
@@ -388,60 +375,40 @@ void run_tunnel(char *dest, int server, int argc, char *argv[]){
                     printf("%02d",buffer_u.cooked_data.payload.ip.dst[j]);
                     if(j<4-1)printf(":");
                 }
-
-
                 printf("\n    ip.proto:  ");
                 printf("%u",buffer_u.cooked_data.payload.ip.proto);
-                switch(buffer_u.cooked_data.payload.ip.proto){
-                    case 1:
-                        printf("(ICMP)");
-                        break;
-                    case 6:
-                        printf("(TCP)");
-                        break;
-                    case 17:
-                        printf("(UDP)");
-                        break;
-                }
-
                 printf("\n    size:%d",size);
-
                 print_hexdump((char*)buffer_u.raw_data, size);
                 print_asciidump((char*)buffer_u.raw_data, size);
-
-                size = size - sizeof(struct eth_hdr); //redimenciona o tamanho para nao pegar lixo
-                memset(&payload, 0, sizeof(payload));
-                memcpy(payload, buffer_u.raw_data + sizeof(struct eth_hdr), size);
-
-                if (buffer_u.cooked_data.ethernet.eth_type == ntohs(ETH_P_IP)){ //ICMP
-    				printf("IDENTIFIED ip.dst:    ");
-                        for(j = 0;j<4;j++){
-                            printf("%02d",buffer_u.cooked_data.payload.ip.dst[j]);
-                            if(j<4-1)printf(":");
-                        }
-                    if (server) {
-    					if (buffer_u.cooked_data.payload.ip.dst[0] == IP_CLIENT0 && buffer_u.cooked_data.payload.ip.dst[1] == IP_CLIENT1 &&
-    						buffer_u.cooked_data.payload.ip.dst[2] == IP_CLIENT2 && buffer_u.cooked_data.payload.ip.dst[3] == IP_CLIENT3){
-    						memcpy(payload, buffer_u.raw_data + sizeof(struct eth_hdr) + sizeof(struct ip_hdr) + sizeof(struct icmp_hdr), size);
-    						print_hexdump(payload, size);
-    						print_asciidump(payload, size);
-    						tun_write(tun_fd, payload, size);
-    						printf("[DEBUG][ETH_P_IP] Write tun device\n");
-    					}
-    				} else {
-    					printf("    %02d:%02d:%02d:%02d",IP_CLIENT0,IP_CLIENT1,IP_CLIENT2,IP_CLIENT3);
-    					printf("\n");
-    					if (buffer_u.cooked_data.payload.ip.dst[0] == IP_CLIENT0 && buffer_u.cooked_data.payload.ip.dst[1] == IP_CLIENT1 &&
-    						buffer_u.cooked_data.payload.ip.dst[2] == IP_CLIENT2 && buffer_u.cooked_data.payload.ip.dst[3] == IP_CLIENT3){
-    						memcpy(payload, buffer_u.raw_data + sizeof(struct eth_hdr) + sizeof(struct ip_hdr) + sizeof(struct icmp_hdr), size);
-    						print_hexdump(payload, size);
-    						print_asciidump(payload, size);
-    						tun_write(tun_fd, payload, size);
-    						printf("[DEBUG][ETH_P_IP] Write tun device\n");
-    					}
-    				}
-    			}
             }
+
+            if (buffer_u.cooked_data.ethernet.eth_type == ntohs(ETH_P_IP)){ //ICMP
+				printf("IDENTIFIED ip.dst:    ");
+                    for(j = 0;j<4;j++){
+                        printf("%02d",buffer_u.cooked_data.payload.ip.dst[j]);
+                        if(j<4-1)printf(":");
+                    }
+                if (server) {
+					if (buffer_u.cooked_data.payload.ip.dst[0] == ip_client[0] && buffer_u.cooked_data.payload.ip.dst[1] == ip_client[1] &&
+						buffer_u.cooked_data.payload.ip.dst[2] == ip_client[2] && buffer_u.cooked_data.payload.ip.dst[3] == ip_client[3]){
+						memcpy(payload, buffer_u.raw_data + sizeof(struct eth_hdr) + sizeof(struct ip_hdr) + sizeof(struct icmp_hdr), size);
+						print_hexdump(payload, size);
+						print_asciidump(payload, size);
+						tun_write(tun_fd, payload, size);
+						printf("[DEBUG][ETH_P_IP] Write tun device\n");
+					}
+				} else {
+					if (buffer_u.cooked_data.payload.ip.dst[0] == ip_proxy[0] && buffer_u.cooked_data.payload.ip.dst[1] == ip_proxy[1] &&
+						buffer_u.cooked_data.payload.ip.dst[2] == ip_proxy[2] && buffer_u.cooked_data.payload.ip.dst[3] == ip_proxy[3]){
+						memcpy(payload, buffer_u.raw_data + sizeof(struct eth_hdr) + sizeof(struct ip_hdr) + sizeof(struct icmp_hdr), size);
+						print_hexdump(payload, size);
+						print_asciidump(payload, size);
+						tun_write(tun_fd, payload, size);
+						printf("[DEBUG][ETH_P_IP] Write tun device\n");
+					}
+				}
+			}
+            
 		}
         printf("\e[0m"); //No Color
 	}
