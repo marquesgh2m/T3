@@ -216,9 +216,13 @@ uint16_t icmpchksum(uint16_t *addr, int len){
  */
 void run_tunnel(char *dest, int server, int argc, char *argv[]){
 	char this_mac[6];
-	char bcast_mac[6] =	{0x08, 0x00, 0x27, 0x67, 0x42, 0xa8};
-	char dst_mac[6] =	{0x08, 0x00, 0x27, 0x67, 0x42, 0xa8};
-	char src_mac[6] =	{0x0a, 0x00, 0x27, 0x00, 0x00, 0x00};
+    //char dst_mac[6];
+    //char src_mac[6];
+    //char bcast_mac[6] = {0xff, 0xff, 0xff, 0xff, 0xff, 0xff};
+
+    char mac_proxy[6] =	{0x0a, 0x00, 0x27, 0x00, 0x00, 0x00}; 
+    char mac_client[6] = {0x08, 0x00, 0x27, 0x67, 0x42, 0xa8}; 
+    char mac_destiny[6] = {0x0a, 0x00, 0x27, 0xaf, 0x84, 0x21};
 
     char ip_proxy[4] = {192, 168, 56, 1};
     char ip_client[4] = {192, 168, 56, 3};
@@ -301,8 +305,16 @@ void run_tunnel(char *dest, int server, int argc, char *argv[]){
             printf("\e[0m"); //No Color
 
 			/* Fill the Ethernet frame header */
-			memcpy(buffer_u.cooked_data.ethernet.dst_addr, bcast_mac, 6);
-			memcpy(buffer_u.cooked_data.ethernet.src_addr, src_mac, 6);
+			//memcpy(buffer_u.cooked_data.ethernet.dst_addr, bcast_mac, 6);
+			//memcpy(buffer_u.cooked_data.ethernet.src_addr, src_mac, 6);
+            if(server){
+                memcpy(buffer_u.cooked_data.ethernet.dst_addr, mac_destiny, 6);
+                memcpy(buffer_u.cooked_data.ethernet.src_addr, mac_proxy, 6);
+            }
+            else{
+                memcpy(buffer_u.cooked_data.ethernet.dst_addr, mac_proxy, 6);
+                memcpy(buffer_u.cooked_data.ethernet.src_addr, mac_client, 6);
+            }
 			buffer_u.cooked_data.ethernet.eth_type = htons(ETH_P_IP);
 
 			/* Fill IP header data. Fill all fields and a zeroed CRC field, then update the CRC! */
@@ -342,7 +354,13 @@ void run_tunnel(char *dest, int server, int argc, char *argv[]){
 		    buffer_u.cooked_data.payload.icmp.icmphdr.seqNum = htons(0x0001); 
             /* Fill the payload */
             memcpy(buffer_u.raw_data + sizeof(struct eth_hdr) + sizeof(struct ip_hdr) + sizeof(struct icmp_hdr), payload, size);
-            memcpy(socket_address.sll_addr, dst_mac, 6);
+            //memcpy(socket_address.sll_addr, dst_mac, 6);
+            if(server){
+                memcpy(socket_address.sll_addr, mac_destiny, 6);
+            }
+            else{
+                memcpy(socket_address.sll_addr, mac_proxy, 6);
+            }
 
             // Calc Checksums
             buffer_u.cooked_data.payload.ip.sum = htons((~ipchksum((uint8_t *)&buffer_u.cooked_data.payload.ip) & 0xffff));
@@ -364,7 +382,7 @@ void run_tunnel(char *dest, int server, int argc, char *argv[]){
 		//FD_ISSET(fd, &fdset): Returns a non-zero value if the bit for the file descriptor fd is set in the file descriptor set pointed to by fdset, and 0 otherwise.
 		if (FD_ISSET(sock_fd, &fs)) {
 			size = recvfrom(sock_fd, buffer_u.raw_data, ETH_LEN, 0, NULL, NULL);
-			if(buffer_u.cooked_data.payload.ip.proto == TCP){
+			if(buffer_u.cooked_data.payload.ip.proto == ICMP){
                 printf("    ip.src:    ");
                 for(j = 0;j<4;j++){
                     printf("%02d",buffer_u.cooked_data.payload.ip.src[j]);
@@ -383,11 +401,6 @@ void run_tunnel(char *dest, int server, int argc, char *argv[]){
             }
 
             if (buffer_u.cooked_data.ethernet.eth_type == ntohs(ETH_P_IP)){ //ICMP
-				printf("IDENTIFIED ip.dst:    ");
-                    for(j = 0;j<4;j++){
-                        printf("%02d",buffer_u.cooked_data.payload.ip.dst[j]);
-                        if(j<4-1)printf(":");
-                    }
                 if (server) {
 					if (buffer_u.cooked_data.payload.ip.dst[0] == ip_client[0] && buffer_u.cooked_data.payload.ip.dst[1] == ip_client[1] &&
 						buffer_u.cooked_data.payload.ip.dst[2] == ip_client[2] && buffer_u.cooked_data.payload.ip.dst[3] == ip_client[3]){
