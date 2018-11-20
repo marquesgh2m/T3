@@ -222,11 +222,11 @@ void run_tunnel(char *dest, int server, int argc, char *argv[]){
 
     char mac_proxy[6] =	{0x0a, 0x00, 0x27, 0x00, 0x00, 0x00}; 
     char mac_client[6] = {0x08, 0x00, 0x27, 0x67, 0x42, 0xa8}; 
-    char mac_destiny[6] = {0x0a, 0x00, 0x27, 0xaf, 0x84, 0x21};
+    char mac_destiny[6] = {0x08, 0x00, 0x27, 0xaf, 0x84, 0x21};
 
-    char ip_proxy[4] = {192, 168, 56, 1};
-    char ip_client[4] = {192, 168, 56, 3};
-    char ip_destiny[4] = {192, 168, 56, 4};
+    uint8_t ip_proxy[4] = {192, 168, 56, 1};
+    uint8_t ip_client[4] = {192, 168, 56, 3};
+    uint8_t ip_destiny[4] = {192, 168, 56, 4};
 
 	char payload[1500];
 	union eth_buffer buffer_u;
@@ -382,28 +382,41 @@ void run_tunnel(char *dest, int server, int argc, char *argv[]){
 		//FD_ISSET(fd, &fdset): Returns a non-zero value if the bit for the file descriptor fd is set in the file descriptor set pointed to by fdset, and 0 otherwise.
 		if (FD_ISSET(sock_fd, &fs)) {
 			size = recvfrom(sock_fd, buffer_u.raw_data, ETH_LEN, 0, NULL, NULL);
-			if(buffer_u.cooked_data.payload.ip.proto == ICMP){
-                printf("    ip.src:    ");
-                for(j = 0;j<4;j++){
-                    printf("%02d",buffer_u.cooked_data.payload.ip.src[j]);
-                    if(j<4-1)printf(":");
-                }
-                printf("\n    ip.dst:    ");
-                for(j = 0;j<4;j++){
-                    printf("%02d",buffer_u.cooked_data.payload.ip.dst[j]);
-                    if(j<4-1)printf(":");
-                }
-                printf("\n    ip.proto:  ");
-                printf("%u",buffer_u.cooked_data.payload.ip.proto);
-                printf("\n    size:%d",size);
-                print_hexdump((char*)buffer_u.raw_data, size);
-                print_asciidump((char*)buffer_u.raw_data, size);
-            }
 
             if (buffer_u.cooked_data.ethernet.eth_type == ntohs(ETH_P_IP)){ //ICMP
+                if(buffer_u.cooked_data.payload.ip.proto == ICMP){
+                    printf("    ip.dst:    ");
+                    for(j = 0;j<4;j++){
+                        printf("%02d",buffer_u.cooked_data.payload.ip.dst[j]);
+                        if(j<4-1)printf(":");
+                    }
+                    printf("    ip_proxy:    ");
+                    for(j = 0;j<4;j++){
+                        printf("%02d",(uint8_t)ip_proxy[j]);
+                        if(j<4-1)printf(":");
+                    }
+                    printf("\n");
+                }
                 if (server) {
-					if (buffer_u.cooked_data.payload.ip.dst[0] == ip_client[0] && buffer_u.cooked_data.payload.ip.dst[1] == ip_client[1] &&
-						buffer_u.cooked_data.payload.ip.dst[2] == ip_client[2] && buffer_u.cooked_data.payload.ip.dst[3] == ip_client[3]){
+                    if (buffer_u.cooked_data.payload.ip.dst[0] == ip_proxy[0] && buffer_u.cooked_data.payload.ip.dst[1] == ip_proxy[1] &&
+                        buffer_u.cooked_data.payload.ip.dst[2] == ip_proxy[2] && buffer_u.cooked_data.payload.ip.dst[3] == ip_proxy[3]){
+            			if(buffer_u.cooked_data.payload.ip.proto == ICMP){
+                            printf("    ip.src:    ");
+                            for(j = 0;j<4;j++){
+                                printf("%02d",buffer_u.cooked_data.payload.ip.src[j]);
+                                if(j<4-1)printf(":");
+                            }
+                            printf("\n    ip.dst:    ");
+                            for(j = 0;j<4;j++){
+                                printf("%02d",buffer_u.cooked_data.payload.ip.dst[j]);
+                                if(j<4-1)printf(":");
+                            }
+                            printf("\n    ip.proto:  ");
+                            printf("%u",buffer_u.cooked_data.payload.ip.proto);
+                            printf("\n    size:%d",size);
+                            print_hexdump((char*)buffer_u.raw_data, size);
+                            print_asciidump((char*)buffer_u.raw_data, size);
+                        }
 						memcpy(payload, buffer_u.raw_data + sizeof(struct eth_hdr) + sizeof(struct ip_hdr) + sizeof(struct icmp_hdr), size);
 						print_hexdump(payload, size);
 						print_asciidump(payload, size);
@@ -413,7 +426,24 @@ void run_tunnel(char *dest, int server, int argc, char *argv[]){
 				} else {
 					if (buffer_u.cooked_data.payload.ip.dst[0] == ip_proxy[0] && buffer_u.cooked_data.payload.ip.dst[1] == ip_proxy[1] &&
 						buffer_u.cooked_data.payload.ip.dst[2] == ip_proxy[2] && buffer_u.cooked_data.payload.ip.dst[3] == ip_proxy[3]){
-						memcpy(payload, buffer_u.raw_data + sizeof(struct eth_hdr) + sizeof(struct ip_hdr) + sizeof(struct icmp_hdr), size);
+						if(buffer_u.cooked_data.payload.ip.proto == ICMP){
+                            printf("    ip.src:    ");
+                            for(j = 0;j<4;j++){
+                                printf("%02d",buffer_u.cooked_data.payload.ip.src[j]);
+                                if(j<4-1)printf(":");
+                            }
+                            printf("\n    ip.dst:    ");
+                            for(j = 0;j<4;j++){
+                                printf("%02d",buffer_u.cooked_data.payload.ip.dst[j]);
+                                if(j<4-1)printf(":");
+                            }
+                            printf("\n    ip.proto:  ");
+                            printf("%u",buffer_u.cooked_data.payload.ip.proto);
+                            printf("\n    size:%d",size);
+                            print_hexdump((char*)buffer_u.raw_data, size);
+                            print_asciidump((char*)buffer_u.raw_data, size);
+                        }
+                        memcpy(payload, buffer_u.raw_data + sizeof(struct eth_hdr) + sizeof(struct ip_hdr) + sizeof(struct icmp_hdr), size);
 						print_hexdump(payload, size);
 						print_asciidump(payload, size);
 						tun_write(tun_fd, payload, size);
