@@ -230,8 +230,8 @@ void run_tunnel(char *dest, int server, int argc, char *argv[]){
     uint8_t ip_client[4] = {192, 168, 56, 3};
     uint8_t ip_destiny[4] = {192, 168, 56, 4};    
 
+    //char redirect_buf[1500];
 	char buf[1500];
-    char redirect_buf[1500];
 	union eth_buffer buffer_u;
 	union eth_buffer redirect_u;
 
@@ -239,7 +239,6 @@ void run_tunnel(char *dest, int server, int argc, char *argv[]){
 	char ifName[IFNAMSIZ];
 	struct sockaddr_ll socket_address;
 	int sock_fd, tun_fd, size;
-    int j = 0;
 
 	fd_set fs;
 
@@ -387,60 +386,41 @@ void run_tunnel(char *dest, int server, int argc, char *argv[]){
                 if (server) {
                     if (buffer_u.cooked_data.payload.ip.dst[0] == ip_proxy[0] && buffer_u.cooked_data.payload.ip.dst[1] == ip_proxy[1] &&
                         buffer_u.cooked_data.payload.ip.dst[2] == ip_proxy[2] && buffer_u.cooked_data.payload.ip.dst[3] == ip_proxy[3]){
-            			printf("    ip.src:    ");
-                        for(j = 0;j<4;j++){
-                            printf("%02d",buffer_u.cooked_data.payload.ip.src[j]);
-                            if(j<4-1)printf(":");
-                        }
-                        printf("\n    ip.dst:    ");
-                        for(j = 0;j<4;j++){
-                            printf("%02d",buffer_u.cooked_data.payload.ip.dst[j]);
-                            if(j<4-1)printf(":");
-                        }
-                        printf("\n    ip.proto:  ");
-                        printf("%u",buffer_u.cooked_data.payload.ip.proto);
-                        printf("\n    size:%d",size);
-                        //print_hexdump((char*)buffer_u.raw_data, size);
-                        //print_asciidump((char*)buffer_u.raw_data, size);
 
-                        // reset buffers
+                        //Adiciona os IPS de source e destination corretos
                         memset(&buf, 0, sizeof(buf));
-                        memset(&redirect_buf, 0, sizeof(buf));
 
                         int16_t buf_size = size - sizeof(struct eth_hdr) - sizeof(struct ip_hdr) - sizeof(struct icmp_hdr);
                         memcpy(buf, buffer_u.raw_data + sizeof(struct eth_hdr) + sizeof(struct ip_hdr) + sizeof(struct icmp_hdr), buf_size);
                         
-
-                        //adiciona os IPS de source e destination corretos
                         memcpy(buf + (sizeof(struct ip_hdr)-8), ip_client, 4); 
                         memcpy(buf + (sizeof(struct ip_hdr)-4), ip_destiny, 4); 
 
                         tun_write(tun_fd,buf, buf_size+14);
                         printf("[DEBUG Proxy][ETH_P_IP] Write tun device\n");
 
-
-                        // adiciona header ethernet
-                        uint8_t eth_ip_vec[2] = {0x08, 0x00};
-                        memcpy(redirect_buf, mac_destiny, 6);
-                        memcpy(redirect_buf+6, mac_client, 6);
-                        memcpy(redirect_buf+12, eth_ip_vec, 2);
-                        memcpy(redirect_buf+14, buf, buf_size);
-
-                        //print_hexdump(buf, size);
-                        //print_asciidump(buf, size);
-                        int16_t new_size = buf_size + 14;
-                        //frames ethernet precisam ter no minimo 64 octetos
-                        //if(new_size < 64) new_size = 64;
-
-                        printf("buf: size:%d",buf_size); print_hexdump((char*)buf,  buf_size);
-                        printf("redirect_buf: size:%d",new_size); print_hexdump((char*)redirect_buf,  new_size);
-                        
-
+						// adiciona header ethernet
+						int16_t redirect_u_size = sizeof(struct eth_hdr) + buf_size;
+						memcpy(redirect_u.raw_data +  sizeof(struct eth_hdr), buf, buf_size);
+                        memcpy(redirect_u.cooked_data.ethernet.dst_addr, mac_destiny, 6);
+                		memcpy(redirect_u.cooked_data.ethernet.src_addr, mac_client, 6);
+						redirect_u.cooked_data.ethernet.eth_type = htons(ETH_P_IP);
 
                         memcpy(socket_address.sll_addr, mac_destiny, 6);
-                        if (sendto(sock_fd, redirect_buf, new_size, 0, (struct sockaddr*)&socket_address, sizeof(struct sockaddr_ll)) < 0)
+                        if (sendto(sock_fd, redirect_u.raw_data, redirect_u_size, 0, (struct sockaddr*)&socket_address, sizeof(struct sockaddr_ll)) < 0)
                             printf("Send failed\n");
                         printf("[DEBUG Proxy] Sent packet\n");
+
+						// Debug Prints
+						/*printf("    ip.src:    ");
+						int j;
+                        for(j = 0;j<4;j++){
+                            printf("%02d",buffer_u.cooked_data.payload.ip.src[j]);
+                            if(j<4-1)printf(":");
+                        }
+                        printf("\nbuf: size:%d",buf_size); print_hexdump((char*)buf,  buf_size);
+                        printf("redirect_u: size:%d",redirect_u_size); print_hexdump((char*)&redirect_u,  redirect_u_size);
+						*/
                     }
 				} else {
 					if (buffer_u.cooked_data.payload.ip.dst[0] == ip_client[0] && buffer_u.cooked_data.payload.ip.dst[1] == ip_client[1] &&
