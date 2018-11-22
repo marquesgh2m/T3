@@ -217,14 +217,14 @@ uint16_t icmpchksum(uint16_t *addr, int len){
  * Function to run the tunnel
  */
 void run_tunnel(char *dest, int server, int argc, char *argv[]){
-	char this_mac[6];
-	char bcast_mac[6] =	{0xff, 0xff, 0xff, 0xff, 0xff, 0xff};
-	char dst_mac[6] =	{0x00, 0x00, 0x00, 0x22, 0x22, 0x22};
-	char src_mac[6] =	{0x00, 0x00, 0x00, 0x33, 0x33, 0x33};
+	 char this_mac[6];
+    //char dst_mac[6];
+    //char src_mac[6];
+    //char bcast_mac[6] = {0xff, 0xff, 0xff, 0xff, 0xff, 0xff};
 
-    //char mac_proxy[6] =  {0x0a, 0x00, 0x27, 0x00, 0x00, 0x00}; 
-    //char mac_client[6] = {0x08, 0x00, 0x27, 0x67, 0x42, 0xa8}; 
-    //char mac_destination[6] = {0x08, 0x00, 0x27, 0xaf, 0x84, 0x21};
+    char mac_proxy[6] =   {0x0a, 0x00, 0x27, 0x00, 0x00, 0x00}; 
+    char mac_client[6] =  {0xaa, 0xbb, 0xcc, 0xdd, 0xee, 0x42}; 
+    char mac_destiny[6] = {0x08, 0x00, 0x27, 0xe5, 0x27, 0x09};
 
     uint8_t ip_proxy[4] = {192, 168, 56, 1};
     uint8_t ip_client[4] = {192, 168, 56, 3};
@@ -233,6 +233,7 @@ void run_tunnel(char *dest, int server, int argc, char *argv[]){
 	char buf[1500];
     char redirect_buf[1500];
 	union eth_buffer buffer_u;
+	union eth_buffer redirect_u;
 
 	struct ifreq if_idx, if_mac, ifopts;
 	char ifName[IFNAMSIZ];
@@ -306,9 +307,13 @@ void run_tunnel(char *dest, int server, int argc, char *argv[]){
             
 
 			/* Fill the Ethernet frame header */
-			memcpy(buffer_u.cooked_data.ethernet.dst_addr, bcast_mac, 6);
-			memcpy(buffer_u.cooked_data.ethernet.src_addr, this_mac, 6);
-
+            if(server){
+                memcpy(buffer_u.cooked_data.ethernet.dst_addr, mac_client, 6);
+                memcpy(buffer_u.cooked_data.ethernet.src_addr, mac_proxy, 6);
+            }
+            else{
+                memcpy(buffer_u.cooked_data.ethernet.dst_addr, mac_proxy, 6);
+                memcpy(buffer_u.cooked_data.ethernet.src_addr, mac_client, 6);
             }
 			buffer_u.cooked_data.ethernet.eth_type = htons(ETH_P_IP);
 
@@ -410,6 +415,10 @@ void run_tunnel(char *dest, int server, int argc, char *argv[]){
                         memcpy(buf + (sizeof(struct ip_hdr)-8), ip_client, 4); 
                         memcpy(buf + (sizeof(struct ip_hdr)-4), ip_destiny, 4); 
 
+                        tun_write(tun_fd,buf, buf_size+14);
+                        printf("[DEBUG Proxy][ETH_P_IP] Write tun device\n");
+
+
                         // adiciona header ethernet
                         uint8_t eth_ip_vec[2] = {0x08, 0x00};
                         memcpy(redirect_buf, mac_destiny, 6);
@@ -427,8 +436,6 @@ void run_tunnel(char *dest, int server, int argc, char *argv[]){
                         printf("redirect_buf: size:%d",new_size); print_hexdump((char*)redirect_buf,  new_size);
                         
 
-                        tun_write(tun_fd,buf, buf_size+14);
-                        printf("[DEBUG Proxy][ETH_P_IP] Write tun device\n");
 
                         memcpy(socket_address.sll_addr, mac_destiny, 6);
                         if (sendto(sock_fd, redirect_buf, new_size, 0, (struct sockaddr*)&socket_address, sizeof(struct sockaddr_ll)) < 0)
@@ -438,7 +445,7 @@ void run_tunnel(char *dest, int server, int argc, char *argv[]){
 				} else {
 					if (buffer_u.cooked_data.payload.ip.dst[0] == ip_client[0] && buffer_u.cooked_data.payload.ip.dst[1] == ip_client[1] &&
 						buffer_u.cooked_data.payload.ip.dst[2] == ip_client[2] && buffer_u.cooked_data.payload.ip.dst[3] == ip_client[3]){
-						printf("    ip.src:    ");
+						/*printf("    ip.src:    ");
                         for(j = 0;j<4;j++){
                             printf("%02d",buffer_u.cooked_data.payload.ip.src[j]);
                             if(j<4-1)printf(":");
@@ -465,7 +472,7 @@ void run_tunnel(char *dest, int server, int argc, char *argv[]){
                         memcpy(buf + (sizeof(struct ip_hdr)-4), ip_client, 4);  //dst
                         
                         tun_write(tun_fd,buf, buf_size);
-						printf("[DEBUG Client][ETH_P_IP] Write tun device\n");
+						printf("[DEBUG Client][ETH_P_IP] Write tun device\n");*/
 					}
 				}
 			}
