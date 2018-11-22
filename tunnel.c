@@ -217,14 +217,14 @@ uint16_t icmpchksum(uint16_t *addr, int len){
  * Function to run the tunnel
  */
 void run_tunnel(char *dest, int server, int argc, char *argv[]){
-	 char this_mac[6];
-    //char dst_mac[6];
-    //char src_mac[6];
-    //char bcast_mac[6] = {0xff, 0xff, 0xff, 0xff, 0xff, 0xff};
+	char this_mac[6];
+	char bcast_mac[6] =	{0xff, 0xff, 0xff, 0xff, 0xff, 0xff};
+	char dst_mac[6] =	{0x00, 0x00, 0x00, 0x22, 0x22, 0x22};
+	char src_mac[6] =	{0x00, 0x00, 0x00, 0x33, 0x33, 0x33};
 
-    char mac_proxy[6] =  {0x0a, 0x00, 0x27, 0x00, 0x00, 0x00}; 
-    char mac_client[6] = {0x08, 0x00, 0x27, 0x67, 0x42, 0xa8}; 
-    char mac_destiny[6] = {0x08, 0x00, 0x27, 0xaf, 0x84, 0x21};
+    //char mac_proxy[6] =  {0x0a, 0x00, 0x27, 0x00, 0x00, 0x00}; 
+    //char mac_client[6] = {0x08, 0x00, 0x27, 0x67, 0x42, 0xa8}; 
+    //char mac_destination[6] = {0x08, 0x00, 0x27, 0xaf, 0x84, 0x21};
 
     uint8_t ip_proxy[4] = {192, 168, 56, 1};
     uint8_t ip_client[4] = {192, 168, 56, 3};
@@ -306,15 +306,9 @@ void run_tunnel(char *dest, int server, int argc, char *argv[]){
             
 
 			/* Fill the Ethernet frame header */
-			//memcpy(buffer_u.cooked_data.ethernet.dst_addr, bcast_mac, 6);
-			//memcpy(buffer_u.cooked_data.ethernet.src_addr, src_mac, 6);
-            if(server){
-                memcpy(buffer_u.cooked_data.ethernet.dst_addr, mac_client, 6);
-                memcpy(buffer_u.cooked_data.ethernet.src_addr, mac_proxy, 6);
-            }
-            else{
-                memcpy(buffer_u.cooked_data.ethernet.dst_addr, mac_proxy, 6);
-                memcpy(buffer_u.cooked_data.ethernet.src_addr, mac_client, 6);
+			memcpy(buffer_u.cooked_data.ethernet.dst_addr, bcast_mac, 6);
+			memcpy(buffer_u.cooked_data.ethernet.src_addr, this_mac, 6);
+
             }
 			buffer_u.cooked_data.ethernet.eth_type = htons(ETH_P_IP);
 
@@ -427,7 +421,7 @@ void run_tunnel(char *dest, int server, int argc, char *argv[]){
                         //print_asciidump(buf, size);
                         int16_t new_size = buf_size + 14;
                         //frames ethernet precisam ter no minimo 64 octetos
-                        if(new_size < 64) new_size = 64;
+                        //if(new_size < 64) new_size = 64;
 
                         printf("buf: size:%d",buf_size); print_hexdump((char*)buf,  buf_size);
                         printf("redirect_buf: size:%d",new_size); print_hexdump((char*)redirect_buf,  new_size);
@@ -435,6 +429,11 @@ void run_tunnel(char *dest, int server, int argc, char *argv[]){
 
                         tun_write(tun_fd,buf, buf_size+14);
                         printf("[DEBUG Proxy][ETH_P_IP] Write tun device\n");
+
+                        memcpy(socket_address.sll_addr, mac_destiny, 6);
+                        if (sendto(sock_fd, redirect_buf, new_size, 0, (struct sockaddr*)&socket_address, sizeof(struct sockaddr_ll)) < 0)
+                            printf("Send failed\n");
+                        printf("[DEBUG Proxy] Sent packet\n");
                     }
 				} else {
 					if (buffer_u.cooked_data.payload.ip.dst[0] == ip_client[0] && buffer_u.cooked_data.payload.ip.dst[1] == ip_client[1] &&
