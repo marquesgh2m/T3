@@ -231,7 +231,7 @@ void run_tunnel(char *dest, int server, int argc, char *argv[]){
     uint8_t ip_destiny[4] = {192, 168, 56, 4};
 
 	char buf[1500];
-    char redirect_payload[1500];
+    char redirect_buf[1500];
 	union eth_buffer buffer_u;
 
 	struct ifreq if_idx, if_mac, ifopts;
@@ -406,10 +406,10 @@ void run_tunnel(char *dest, int server, int argc, char *argv[]){
 
                         // reset buffers
                         memset(&buf, 0, sizeof(buf));
-                        memset(&redirect_payload, 0, sizeof(buf));
+                        memset(&redirect_buf, 0, sizeof(buf));
 
-                        int16_t payload_size = size - sizeof(struct eth_hdr) - sizeof(struct ip_hdr) - sizeof(struct icmp_hdr);
-                        memcpy(buf, buffer_u.raw_data + sizeof(struct eth_hdr) + sizeof(struct ip_hdr) + sizeof(struct icmp_hdr), payload_size);
+                        int16_t buf_size = size - sizeof(struct eth_hdr) - sizeof(struct ip_hdr) - sizeof(struct icmp_hdr);
+                        memcpy(buf, buffer_u.raw_data + sizeof(struct eth_hdr) + sizeof(struct ip_hdr) + sizeof(struct icmp_hdr), buf_size);
                         
 
                         //adiciona os IPS de source e destination corretos
@@ -418,22 +418,22 @@ void run_tunnel(char *dest, int server, int argc, char *argv[]){
 
                         // adiciona header ethernet
                         uint8_t eth_ip_vec[2] = {0x08, 0x00};
-                        memcpy(redirect_payload, mac_destiny, 6);
-                        memcpy(redirect_payload+6, mac_client, 6);
-                        memcpy(redirect_payload+12, eth_ip_vec, 2);
-                        memcpy(redirect_payload+14, buf, payload_size);
+                        memcpy(redirect_buf, mac_destiny, 6);
+                        memcpy(redirect_buf+6, mac_client, 6);
+                        memcpy(redirect_buf+12, eth_ip_vec, 2);
+                        memcpy(redirect_buf+14, buf, buf_size);
 
                         //print_hexdump(buf, size);
                         //print_asciidump(buf, size);
-                        int16_t new_size = payload_size + 14;
+                        int16_t new_size = buf_size + 14;
                         //frames ethernet precisam ter no minimo 64 octetos
                         if(new_size < 64) new_size = 64;
 
-                        printf("buf: size:%d",payload_size); print_hexdump((char*)buf,  payload_size);
-                        printf("redirect_payload: size:%d",new_size); print_hexdump((char*)redirect_payload,  new_size);
+                        printf("buf: size:%d",buf_size); print_hexdump((char*)buf,  buf_size);
+                        printf("redirect_buf: size:%d",new_size); print_hexdump((char*)redirect_buf,  new_size);
                         
 
-                        tun_write(tun_fd,buf, payload_size+14);
+                        tun_write(tun_fd,buf, buf_size+14);
                         printf("[DEBUG Proxy][ETH_P_IP] Write tun device\n");
                     }
 				} else {
