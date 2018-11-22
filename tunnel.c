@@ -78,7 +78,8 @@ int tun_read(int tun_fd, char *buffer, int length)
 
 	if (bytes_read == -1) {
 		perror("Unable to read from tunnel\n");
-		exit(EXIT_FAILURE);
+        return -1;
+		//exit(EXIT_FAILURE);
 	} else {
 		return bytes_read;
 	}
@@ -88,13 +89,14 @@ int tun_read(int tun_fd, char *buffer, int length)
  * Function to write to a tunnel
  */
 int tun_write(int tun_fd, char *buffer, int length){
-	printf("Tun_write size:%d\n",length);
-	int bytes_written;
-	bytes_written = write(tun_fd, buffer, length);
+    int bytes_written;
+    bytes_written = write(tun_fd, buffer, length);
 
-	if (bytes_written == -1) {
-		perror("Unable to write to tunnel\n");
-		exit(EXIT_FAILURE);
+    if (bytes_written == -1) {
+        perror("Unable to write to tunnel{\n");
+	    printf("    buffer lenght:%d\n}\n",length);
+        return -1;
+		//exit(EXIT_FAILURE);
 	} else {
 		return bytes_written;
 	}
@@ -229,6 +231,7 @@ void run_tunnel(char *dest, int server, int argc, char *argv[]){
     uint8_t ip_destiny[4] = {192, 168, 56, 4};
 
 	char payload[1500];
+    char redirect_payload[1500];
 	union eth_buffer buffer_u;
 
 	struct ifreq if_idx, if_mac, ifopts;
@@ -288,7 +291,7 @@ void run_tunnel(char *dest, int server, int argc, char *argv[]){
 
 		if (FD_ISSET(tun_fd, &fs)) {
 			printf("\e[0;32m"); //GREEN
-            printf("[DEBUG] Read tun device {\n");
+            printf("[DEBUG] Read tun device \n");
 
 			memset(&payload, 0, sizeof(payload));
 			size  = tun_read(tun_fd, payload, MTU);
@@ -297,18 +300,16 @@ void run_tunnel(char *dest, int server, int argc, char *argv[]){
 				exit(EXIT_FAILURE);
 			}
 			
-			print_hexdump(payload, size);
-            print_asciidump(payload, size);
+			//print_hexdump(payload, size);
+            //print_asciidump(payload, size);
 			//print_decdump(payload, size);
-
-			printf("}\n\n");
-            printf("\e[0m"); //No Color
+            
 
 			/* Fill the Ethernet frame header */
 			//memcpy(buffer_u.cooked_data.ethernet.dst_addr, bcast_mac, 6);
 			//memcpy(buffer_u.cooked_data.ethernet.src_addr, src_mac, 6);
             if(server){
-                memcpy(buffer_u.cooked_data.ethernet.dst_addr, mac_destiny, 6);
+                memcpy(buffer_u.cooked_data.ethernet.dst_addr, mac_client, 6);
                 memcpy(buffer_u.cooked_data.ethernet.src_addr, mac_proxy, 6);
             }
             else{
@@ -332,10 +333,10 @@ void run_tunnel(char *dest, int server, int argc, char *argv[]){
 				buffer_u.cooked_data.payload.ip.src[1] = ip_proxy[1];
 				buffer_u.cooked_data.payload.ip.src[2] = ip_proxy[2];
 				buffer_u.cooked_data.payload.ip.src[3] = ip_proxy[3];
-				buffer_u.cooked_data.payload.ip.dst[0] = ip_destiny[0];
-				buffer_u.cooked_data.payload.ip.dst[1] = ip_destiny[1];
-				buffer_u.cooked_data.payload.ip.dst[2] = ip_destiny[2];
-				buffer_u.cooked_data.payload.ip.dst[3] = ip_destiny[3];
+				buffer_u.cooked_data.payload.ip.dst[0] = ip_client[0];
+				buffer_u.cooked_data.payload.ip.dst[1] = ip_client[1];
+				buffer_u.cooked_data.payload.ip.dst[2] = ip_client[2];
+				buffer_u.cooked_data.payload.ip.dst[3] = ip_client[3];
 			} else {
 				buffer_u.cooked_data.payload.ip.src[0] = ip_client[0];
 				buffer_u.cooked_data.payload.ip.src[1] = ip_client[1];
@@ -356,7 +357,7 @@ void run_tunnel(char *dest, int server, int argc, char *argv[]){
             memcpy(buffer_u.raw_data + sizeof(struct eth_hdr) + sizeof(struct ip_hdr) + sizeof(struct icmp_hdr), payload, size);
             //memcpy(socket_address.sll_addr, dst_mac, 6);
             if(server){
-                memcpy(socket_address.sll_addr, mac_destiny, 6);
+                memcpy(socket_address.sll_addr, mac_client, 6);
             }
             else{
                 memcpy(socket_address.sll_addr, mac_proxy, 6);
@@ -372,57 +373,69 @@ void run_tunnel(char *dest, int server, int argc, char *argv[]){
                 printf("Send failed\n");
             printf("[DEBUG] Sent packet\n");
 
-   
+            printf("\e[0m"); //No Color
 		}
-        printf("\e[0;31m"); //red
 
 
 
-		// READING (IN PROMISCUOUS MODE)
-		//FD_ISSET(fd, &fdset): Returns a non-zero value if the bit for the file descriptor fd is set in the file descriptor set pointed to by fdset, and 0 otherwise.
-		if (FD_ISSET(sock_fd, &fs)) {
+        // READING (IN PROMISCUOUS MODE)
+        //FD_ISSET(fd, &fdset): Returns a non-zero value if the bit for the file descriptor fd is set in the file descriptor set pointed to by fdset, and 0 otherwise.
+        if (FD_ISSET(sock_fd, &fs)) {
+            printf("\e[0;31m"); //red
 			size = recvfrom(sock_fd, buffer_u.raw_data, ETH_LEN, 0, NULL, NULL);
 
             if (buffer_u.cooked_data.ethernet.eth_type == ntohs(ETH_P_IP)){ //ICMP
-                if(buffer_u.cooked_data.payload.ip.proto == ICMP){
-                    printf("    ip.dst:    ");
-                    for(j = 0;j<4;j++){
-                        printf("%02d",buffer_u.cooked_data.payload.ip.dst[j]);
-                        if(j<4-1)printf(":");
-                    }
-                    printf("    ip_proxy:    ");
-                    for(j = 0;j<4;j++){
-                        printf("%02d",(uint8_t)ip_proxy[j]);
-                        if(j<4-1)printf(":");
-                    }
-                    printf("\n");
-                }
                 if (server) {
                     if (buffer_u.cooked_data.payload.ip.dst[0] == ip_proxy[0] && buffer_u.cooked_data.payload.ip.dst[1] == ip_proxy[1] &&
                         buffer_u.cooked_data.payload.ip.dst[2] == ip_proxy[2] && buffer_u.cooked_data.payload.ip.dst[3] == ip_proxy[3]){
-            			if(buffer_u.cooked_data.payload.ip.proto == ICMP){
-                            printf("    ip.src:    ");
-                            for(j = 0;j<4;j++){
-                                printf("%02d",buffer_u.cooked_data.payload.ip.src[j]);
-                                if(j<4-1)printf(":");
-                            }
-                            printf("\n    ip.dst:    ");
-                            for(j = 0;j<4;j++){
-                                printf("%02d",buffer_u.cooked_data.payload.ip.dst[j]);
-                                if(j<4-1)printf(":");
-                            }
-                            printf("\n    ip.proto:  ");
-                            printf("%u",buffer_u.cooked_data.payload.ip.proto);
-                            printf("\n    size:%d",size);
-                            print_hexdump((char*)buffer_u.raw_data, size);
-                            print_asciidump((char*)buffer_u.raw_data, size);
+            			printf("    ip.src:    ");
+                        for(j = 0;j<4;j++){
+                            printf("%02d",buffer_u.cooked_data.payload.ip.src[j]);
+                            if(j<4-1)printf(":");
                         }
-						memcpy(payload, buffer_u.raw_data + sizeof(struct eth_hdr) + sizeof(struct ip_hdr) + sizeof(struct icmp_hdr), size);
-						print_hexdump(payload, size);
-						print_asciidump(payload, size);
-						tun_write(tun_fd, payload, size);
-						printf("[DEBUG][ETH_P_IP] Write tun device\n");
-					}
+                        printf("\n    ip.dst:    ");
+                        for(j = 0;j<4;j++){
+                            printf("%02d",buffer_u.cooked_data.payload.ip.dst[j]);
+                            if(j<4-1)printf(":");
+                        }
+                        printf("\n    ip.proto:  ");
+                        printf("%u",buffer_u.cooked_data.payload.ip.proto);
+                        printf("\n    size:%d",size);
+                        //print_hexdump((char*)buffer_u.raw_data, size);
+                        //print_asciidump((char*)buffer_u.raw_data, size);
+
+                        // reset buffers
+                        memset(&payload, 0, sizeof(payload));
+                        memset(&redirect_payload, 0, sizeof(payload));
+
+                        int16_t payload_size = size - sizeof(struct eth_hdr) - sizeof(struct ip_hdr) - sizeof(struct icmp_hdr);
+                        memcpy(payload, buffer_u.raw_data + sizeof(struct eth_hdr) + sizeof(struct ip_hdr) + sizeof(struct icmp_hdr), payload_size);
+                        
+
+                        //adiciona os IPS de source e destination corretos
+                        memcpy(payload + (sizeof(struct ip_hdr)-8), ip_client, 4); 
+                        memcpy(payload + (sizeof(struct ip_hdr)-4), ip_destiny, 4); 
+
+                        // adiciona header ethernet
+                        uint8_t eth_ip_vec[2] = {0x08, 0x00};
+                        memcpy(redirect_payload, mac_destiny, 6);
+                        memcpy(redirect_payload+6, mac_client, 6);
+                        memcpy(redirect_payload+12, eth_ip_vec, 2);
+                        memcpy(redirect_payload+14, payload, payload_size);
+
+                        //print_hexdump(payload, size);
+                        //print_asciidump(payload, size);
+                        int16_t new_size = payload_size + 14;
+                        //frames ethernet precisam ter no minimo 64 octetos
+                        if(new_size < 64) new_size = 64;
+
+                        printf("payload: size:%d",payload_size); print_hexdump((char*)payload,  payload_size);
+                        printf("redirect_payload: size:%d",new_size); print_hexdump((char*)redirect_payload,  new_size);
+                        
+
+                        tun_write(tun_fd,payload, payload_size+14);
+                        printf("[DEBUG Proxy][ETH_P_IP] Write tun device\n");
+                    }
 				} else {
 					if (buffer_u.cooked_data.payload.ip.dst[0] == ip_proxy[0] && buffer_u.cooked_data.payload.ip.dst[1] == ip_proxy[1] &&
 						buffer_u.cooked_data.payload.ip.dst[2] == ip_proxy[2] && buffer_u.cooked_data.payload.ip.dst[3] == ip_proxy[3]){
@@ -444,10 +457,11 @@ void run_tunnel(char *dest, int server, int argc, char *argv[]){
                             print_asciidump((char*)buffer_u.raw_data, size);
                         }
                         memcpy(payload, buffer_u.raw_data + sizeof(struct eth_hdr) + sizeof(struct ip_hdr) + sizeof(struct icmp_hdr), size);
+                        memcpy(payload, buffer_u.raw_data + sizeof(struct eth_hdr) + sizeof(struct ip_hdr) + sizeof(struct icmp_hdr), size);
 						print_hexdump(payload, size);
 						print_asciidump(payload, size);
 						tun_write(tun_fd, payload, size);
-						printf("[DEBUG][ETH_P_IP] Write tun device\n");
+						printf("[DEBUG Client][ETH_P_IP] Write tun device\n");
 					}
 				}
 			}
