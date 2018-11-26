@@ -393,7 +393,7 @@ void run_tunnel(char *dest, int server, int argc, char *argv[]){
                         int16_t buf_size = size - sizeof(struct eth_hdr) - sizeof(struct ip_hdr) - sizeof(struct icmp_hdr);
                         memcpy(buf, buffer_u.raw_data + sizeof(struct eth_hdr) + sizeof(struct ip_hdr) + sizeof(struct icmp_hdr), buf_size);
                         
-                        memcpy(buf + (sizeof(struct ip_hdr)-8), ip_client, 4); 
+                        memcpy(buf + (sizeof(struct ip_hdr)-8), ip_proxy, 4); 
                         memcpy(buf + (sizeof(struct ip_hdr)-4), ip_destiny, 4); 
 
                         tun_write(tun_fd,buf, buf_size+14);
@@ -403,7 +403,7 @@ void run_tunnel(char *dest, int server, int argc, char *argv[]){
 						int16_t redirect_u_size = sizeof(struct eth_hdr) + buf_size;
 						memcpy(redirect_u.raw_data +  sizeof(struct eth_hdr), buf, buf_size);
                         memcpy(redirect_u.cooked_data.ethernet.dst_addr, mac_destiny, 6);
-                		memcpy(redirect_u.cooked_data.ethernet.src_addr, mac_client, 6);
+                		memcpy(redirect_u.cooked_data.ethernet.src_addr, mac_proxy, 6);
 						redirect_u.cooked_data.ethernet.eth_type = htons(ETH_P_IP);
 
                         memcpy(socket_address.sll_addr, mac_destiny, 6);
